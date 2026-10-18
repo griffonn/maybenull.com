@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>maybenull</title>
+  <meta name="description" content="Gregory Pasternak's corner of the internet. Value may be null.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>∅</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #faf9f6;
+      --fg: #1c1c1a;
+      --muted: #6b6a66;
+      --accent: #c2410c;
+      --line: #e4e2dc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #141413;
+        --fg: #ecebe6;
+        --muted: #9a9892;
+        --accent: #fb923c;
+        --line: #2a2a27;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+    }
+    main { width: 100%; max-width: 600px; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+    h1 {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: clamp(2.2rem, 8vw, 3.4rem);
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      margin: 0 0 4px;
+    }
+    h1 .q { color: var(--accent); }
+    .sig {
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin: 0 0 40px;
+    }
+    p { margin: 0 0 16px; font-size: 1.05rem; }
+    .status {
+      margin: 40px 0;
+      padding: 16px 20px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-family: "JetBrains Mono", ui-monospace, monospace;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .status b { color: var(--fg); font-weight: 600; }
+    .cursor {
+      display: inline-block;
+      width: 0.6em;
+      height: 1.1em;
+      background: var(--accent);
+      vertical-align: text-bottom;
+      animation: blink 1.1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+    footer {
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 0.95rem;
+    }
+    a { color: var(--fg); text-decoration-color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>maybe<span class="q">?</span>null</h1>
+    <p class="sig">Optional&lt;Gregory&gt;</p>
+
+    <p>Hi, I'm Gregory Pasternak. This is my corner of the internet.</p>
+    <p>Whether there's anything here yet is, like most interesting values, not guaranteed. Check back later and the result may be non-null.</p>
+
+    <div class="status">
+      <b>status:</b> still converging<br>
+      <b>epoch:</b> 0<br>
+      <b>loss:</b> NaN, probably fine <span class="cursor" aria-hidden="true"></span>
+    </div>
+
+    <footer>
+      <a href="https://github.com/griffonn">GitHub</a>
+    </footer>
+  </main>
+</body>
+</html>
