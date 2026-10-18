@@ -1,0 +1,79 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+
+const posts = (await getCollection('posts', ({ data }) => !data.draft)).sort(
+  (a, b) => b.data.date.valueOf() - a.data.date.valueOf(),
+);
+
+const fmt = (d: Date) => d.toISOString().slice(0, 10);
+---
+
+<Base>
+  <h1 class="title">maybe<span class="q">?</span>null</h1>
+  <p class="sig">Optional&lt;Gregory&gt;</p>
+
+  <p>Hi, I'm Gregory Pasternak. This is my corner of the internet.</p>
+  <p>
+    Whether there's anything here yet is, like most interesting values, not guaranteed.
+    Check back later and the result may be non-null.
+  </p>
+
+  <div class="status">
+    <b>status:</b> still converging<br />
+    <b>epoch:</b> {posts.length}<br />
+    <b>loss:</b> NaN, probably fine <span class="cursor" aria-hidden="true"></span>
+  </div>
+
+  <h2>posts</h2>
+  {
+    posts.length === 0 ? (
+      <p class="empty">null</p>
+    ) : (
+      <ul class="posts">
+        {posts.map((post) => (
+          <li>
+            <time datetime={post.data.date.toISOString()}>{fmt(post.data.date)}</time>
+            <a href={`/posts/${post.id}/`}>{post.data.title}</a>
+          </li>
+        ))}
+      </ul>
+    )
+  }
+</Base>
+
+<style>
+  .title {
+    font-size: clamp(2.2rem, 8vw, 3.4rem);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    margin: 0 0 4px;
+  }
+  .q { color: var(--accent); }
+  .sig { font-family: var(--mono); color: var(--muted); font-size: 0.95rem; margin: 0 0 40px; }
+  .status {
+    margin: 40px 0;
+    padding: 16px 20px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  .status b { color: var(--fg); font-weight: 600; }
+  .cursor {
+    display: inline-block;
+    width: 0.6em;
+    height: 1.1em;
+    background: var(--accent);
+    vertical-align: text-bottom;
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+  h2 { font-size: 1rem; color: var(--muted); font-weight: 400; margin: 0 0 12px; }
+  .empty { font-family: var(--mono); color: var(--muted); }
+  .posts { list-style: none; padding: 0; margin: 0; }
+  .posts li { display: flex; gap: 16px; padding: 6px 0; }
+  .posts time { font-family: var(--mono); color: var(--muted); font-size: 0.9rem; flex-shrink: 0; padding-top: 2px; }
+</style>

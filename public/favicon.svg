@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <style>
+    circle, line { stroke: #c2410c; }
+    @media (prefers-color-scheme: dark) { circle, line { stroke: #fb923c; } }
+  </style>
+  <circle cx="32" cy="32" r="18" fill="none" stroke-width="6"/>
+  <line x1="14" y1="54" x2="50" y2="10" stroke-width="6" stroke-linecap="round"/>
+</svg>
