@@ -193,16 +193,16 @@ two look like obvious next ones. If tsgo picks them up, the gap on type-fest sho
 from about 8× to about 2.5 to 3×, which matches what I measured per core.
 
 **What's left for Rust is per-core speed and memory.** That's a consistent 2.2 to 2.9× per
-core and 3 to 4× less memory in every mode. Even in tsgo-equivalent mode, tsrs peaked at 2.2
+core and 2 to 4× less memory in every mode. Even in tsgo-equivalent mode, tsrs peaked at 2.2
 GB on type-fest where tsgo 7.1 peaked at 6.2 GB. Turning Go's GC off doesn't close it: the
 heap just grows to 7.8 GB. On a 16 GB laptop running an editor, a browser and a language
 server, that difference decides whether the machine swaps.
 
 **Small machines see the full effect.** tsrs's published numbers are from 16-vCPU and larger
 boxes, and its default gets up to 16 checkers there. On 4 cores both compilers use 4, and the
-speedup on type-heavy code was still 8×. That's because tsgo hits a scaling wall early: past
-about 2 checkers its static assignment and GC overhead eat most of the benefit of extra
-cores. Its 8-checker run was slower than its 4-checker run. (Running 8 checkers on 4 cores slows tsrs down too.)
+speedup on type-heavy code was still 8×. That's because tsgo hits a scaling wall early: going
+from 1 to 4 checkers buys it only 1.27×, because its static assignment and GC overhead eat
+most of the benefit of extra cores. Its 8-checker run was slower than its 4-checker run. (Running 8 checkers on 4 cores slows tsrs down too.)
 
 **Caveats.** This is one machine, three projects and a beta compiler. tsrs is labelled
 experimental and has gaps (`--init`, `--showConfig`, `--locale` and `--generateTrace` aren't
