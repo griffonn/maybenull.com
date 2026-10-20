@@ -1,0 +1,4 @@
+5M ctx2048=11ms ctx2048+mirror=24ms ctx8192=31ms ctx8192+mirror=55ms ctx32768=97ms ctx32768+mirror=189ms
+28M ctx2048=26ms ctx2048+mirror=49ms ctx8192=54ms ctx8192+mirror=117ms ctx32768=276ms ctx32768+mirror=585ms
+123M ctx2048=74ms ctx2048+mirror=164ms ctx8192=193ms ctx8192+mirror=394ms ctx32768=752ms ctx32768+mirror=1582ms
+209M ctx2048=132ms ctx2048+mirror=320ms ctx8192=347ms ctx8192+mirror=625ms ctx32768=1183ms ctx32768+mirror=2512ms

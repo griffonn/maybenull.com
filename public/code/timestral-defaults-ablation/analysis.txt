@@ -1,0 +1,71 @@
+== Finding 1: mirror (default) vs single pass, full context
+origin A 5M: 1.004 [0.998, 1.012]
+origin A 28M: 0.997 [0.989, 1.003]
+origin A 209M: 0.998 [0.979, 1.017]
+origin B 5M: 0.992 [0.986, 1.000]
+origin B 209M: 1.000 [0.995, 1.007]
+
+== Finding 1: MSE decomposition, 209M full context, origin A
+electricity_15min          fwd 5.456 mirror 5.532 avg 5.482 gain 0.012 corr 0.996
+monash_traffic             fwd 0.518 mirror 0.552 avg 0.527 gain 0.008 corr 0.966
+ercot                      fwd 1.645 mirror 1.115 avg 1.356 gain 0.024 corr 0.971
+monash_pedestrian_counts   fwd 0.319 mirror 0.573 avg 0.419 gain 0.027 corr 0.911
+monash_kdd_cup_2018        fwd 0.760 mirror 0.761 avg 0.756 gain 0.004 corr 0.986
+solar_1h                   fwd 3.045 mirror 2.913 avg 2.906 gain 0.073 corr 0.949
+m5                         fwd 1.888 mirror 1.905 avg 1.895 gain 0.001 corr 0.998
+exchange_rate              fwd 23.611 mirror 21.104 avg 22.321 gain 0.037 corr 0.997
+taxi_30min                 fwd 1.187 mirror 1.219 avg 1.198 gain 0.005 corr 0.990
+
+== Finding 1: per-dataset WQL/seasonal-naive, full context, origin A (fwd | default | mirror only)
+5M   electricity_15min          0.715 | 0.701 | 0.695
+5M   monash_traffic             0.440 | 0.469 | 0.522
+5M   ercot                      0.562 | 0.578 | 0.597
+5M   monash_pedestrian_counts   0.760 | 0.752 | 0.762
+5M   monash_kdd_cup_2018        0.493 | 0.496 | 0.501
+5M   solar_1h                   0.596 | 0.608 | 0.637
+5M   m5                         0.636 | 0.632 | 0.629
+5M   exchange_rate              0.740 | 0.717 | 0.697
+5M   taxi_30min                 0.542 | 0.537 | 0.539
+28M  electricity_15min          0.724 | 0.716 | 0.713
+28M  monash_traffic             0.490 | 0.491 | 0.507
+28M  ercot                      0.524 | 0.551 | 0.580
+28M  monash_pedestrian_counts   0.765 | 0.742 | 0.733
+28M  monash_kdd_cup_2018        0.502 | 0.502 | 0.507
+28M  solar_1h                   0.593 | 0.594 | 0.606
+28M  m5                         0.620 | 0.623 | 0.627
+28M  exchange_rate              0.733 | 0.704 | 0.680
+28M  taxi_30min                 0.513 | 0.513 | 0.517
+209M electricity_15min          0.677 | 0.678 | 0.682
+209M monash_traffic             0.499 | 0.510 | 0.531
+209M ercot                      0.469 | 0.425 | 0.384
+209M monash_pedestrian_counts   0.582 | 0.630 | 0.692
+209M monash_kdd_cup_2018        0.480 | 0.481 | 0.485
+209M solar_1h                   0.576 | 0.575 | 0.586
+209M m5                         0.622 | 0.624 | 0.626
+209M exchange_rate              0.717 | 0.699 | 0.684
+209M taxi_30min                 0.492 | 0.493 | 0.497
+
+== Finding 2: context sweep, single pass, origin A
+5M 512: 0.633  2048: 0.579  8192: 0.588  32768: 0.600
+28M 512: 0.610  2048: 0.578  8192: 0.593  32768: 0.599
+209M 512: 0.595  2048: 0.546  8192: 0.545  32768: 0.562
+
+== Finding 2: ctx 2048 single pass vs full default
+origin A 5M: 0.960 [0.943, 0.975]
+origin A 28M: 0.968 [0.952, 0.983]
+origin A 209M: 0.974 [0.955, 0.990]
+origin B 5M: 0.974 [0.957, 0.999]
+origin B 209M: 1.018 [0.987, 1.051]
+
+== Finding 2: windowed-normalization intervention, origin A
+5M: ctx2048 0.579  ctx32768 0.600  ctx32768+window2048 0.604
+   drift vs long-context penalty over 168 series: spearman 0.28 (p=2.8e-04)
+209M: ctx2048 0.546  ctx32768 0.562  ctx32768+window2048 0.558
+   drift vs long-context penalty over 168 series: spearman -0.06 (p=4.7e-01)
+
+== Finding 3: model size, ctx 2048 single pass
+origin A 28M vs 5M: 0.999 [0.983, 1.013]
+origin A 209M vs 5M: 0.944 [0.929, 0.967]
+origin A 5M@2048 vs 209M default: 1.032 [1.001, 1.051]
+origin B 209M vs 5M: 0.929 [0.886, 0.980]
+origin B 5M@2048 vs 209M default: 1.095 [1.056, 1.127]
