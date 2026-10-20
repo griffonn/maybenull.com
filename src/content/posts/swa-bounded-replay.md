@@ -42,7 +42,7 @@ bounded replay:    128 + 6 (spec. backtrack) → 134, configured as 140
 ```
 
 The 2,560 in their doc is exactly this product. Bounded replay keeps only the
-first factor. Every replayed token except the last few is computed from a
+window factor. Every replayed token except the last few is computed from a
 truncated history: the first token sees only itself, the second sees two
 tokens, and so on. Those wrong-ish states then feed the decode tokens' windows.
 
@@ -93,7 +93,7 @@ about 1.09·W. On Gemma that's `R = 560`.
 | 1536 | 3.00 | 0.0009 | 0.0007 | 98.7% | 0.016 |
 | 2048 | 4.00 | 0.0007 | 0.0004 | 98.7% | 0.020 |
 
-Those KL numbers mean nothing without a scale, so I added three reference points
+Those KL numbers mean nothing without a scale, so I added four reference points
 (5 of the 6 windows; the sixth hit my time limit):
 
 | reference | mean KL | top-1 agree |
