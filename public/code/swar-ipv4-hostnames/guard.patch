@@ -1,0 +1,36 @@
+--- swift-endpoint/Sources/IPAddress/IPv4Address/String+IPv4Address.swift	2026-10-20 21:17:13.606802686 +0000
++++ se-guard/Sources/IPAddress/IPv4Address/String+IPv4Address.swift	2026-10-20 21:30:22.307076942 +0000
+@@ -306,14 +306,12 @@
+         address: inout UInt32
+     ) -> Bool {
+         /// The shortest possible IPv4 address is "0.0.0.0" with 7 bytes.
+-        guard count >= 7 else { return false }
++        guard UInt(bitPattern: count &- 7) <= 8 else { return false }
++        guard unsafe span.bytes.unsafeLoad(fromUncheckedByteOffset: count &- 1, as: UInt8.self) &- 0x30 <= 9 else { return false }
+ 
+         /// `0x30` == ASCII `0`
+         let m30: UInt64 = 0x3030_3030_3030_3030
+         let m30_u32: UInt32 = 0x3030_3030
+-
+-        /// Read 1 window per segment, each also covering some dots around each segment.
+-        /// Segment 3's window is read further down, once all 3 dots are already known.
+         ///
+         /// XORing with `m30` turns the ASCII codes of `0`...`9` into the numbers `0x00`...`0x09`, and
+         /// the ASCII code of `.` (`0x2E`) into `0x1E`. So among digits and dots, only the dots have
+@@ -513,14 +511,12 @@
+         address: inout UInt32
+     ) -> Bool {
+         /// The shortest possible IPv4 address is "0.0.0.0" with 7 bytes.
+-        guard count >= 7 else { return false }
++        guard UInt(bitPattern: count &- 7) <= 8 else { return false }
++        guard unsafe span.bytes.unsafeLoad(fromUncheckedByteOffset: count &- 1, as: UInt8.self) &- 0x30 <= 9 else { return false }
+ 
+         /// `0x30` == ASCII `0`
+         let m30: UInt64 = 0x3030_3030_3030_3030
+         let m30_u32: UInt32 = 0x3030_3030
+-
+-        /// Read 1 window per segment, each also covering some dots around each segment.
+-        /// Segment 3's window is read further down, once all 3 dots are already known.
+         ///
+         /// XORing with `m30` turns the ASCII codes of `0`...`9` into the numbers `0x00`...`0x09`, and
+         /// the ASCII code of `.` (`0x2E`) into `0x1E`. So among digits and dots, only the dots have

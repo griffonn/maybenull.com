@@ -1,0 +1,6 @@
+len 7 done, tested=823543 mism=0
+len 8 done, tested=6588344 mism=0
+len 9 done, tested=46941951 mism=0
+len 10 done, tested=329417200 mism=0
+len 11 done, tested=2306743943 mism=0
+len 12 done, tested=16148031144 mism=0
