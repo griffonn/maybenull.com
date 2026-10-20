@@ -1,0 +1,7 @@
+n=100000000 filter=134.8 MB k=7
+  gloom.Filter     add  161.51  miss  103.23  hit  161.04 ns/op
+  SBBF-512 + xxh3  add   89.00  miss   73.47  hit   91.67 ns/op
+  gloom.Filter     add  152.13  miss  103.02  hit  149.25 ns/op
+  SBBF-512 + xxh3  add   89.82  miss   76.68  hit   89.25 ns/op
+  gloom.Filter     add  156.44  miss  117.49  hit  184.49 ns/op
+  SBBF-512 + xxh3  add   90.03  miss   99.04  hit  113.48 ns/op

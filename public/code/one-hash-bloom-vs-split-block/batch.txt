@@ -1,0 +1,20 @@
+n=1000000 filter=1.3 MB k=7
+  batched OHBF (gloom scheme)  miss   26.26  hit   26.09 ns/op
+  batched OHBF + fastmod       miss   26.96  hit   20.46 ns/op
+  batched SBBF-512 k8          miss   23.60  hit   17.19 ns/op
+  batched OHBF (gloom scheme)  miss   24.51  hit   20.30 ns/op
+  batched OHBF + fastmod       miss   28.67  hit   23.95 ns/op
+  batched SBBF-512 k8          miss   18.05  hit   12.59 ns/op
+  batched OHBF (gloom scheme)  miss   28.83  hit   25.36 ns/op
+  batched OHBF + fastmod       miss   22.75  hit   19.63 ns/op
+  batched SBBF-512 k8          miss   19.66  hit   13.37 ns/op
+n=100000000 filter=134.8 MB k=7
+  batched OHBF (gloom scheme)  miss   50.86  hit   59.48 ns/op
+  batched OHBF + fastmod       miss   51.50  hit   52.90 ns/op
+  batched SBBF-512 k8          miss   43.89  hit   47.45 ns/op
+  batched OHBF (gloom scheme)  miss   52.85  hit   48.56 ns/op
+  batched OHBF + fastmod       miss   50.06  hit   51.91 ns/op
+  batched SBBF-512 k8          miss   42.48  hit   46.52 ns/op
+  batched OHBF (gloom scheme)  miss   53.58  hit   60.62 ns/op
+  batched OHBF + fastmod       miss   48.06  hit   46.34 ns/op
+  batched SBBF-512 k8          miss   44.57  hit   48.65 ns/op
