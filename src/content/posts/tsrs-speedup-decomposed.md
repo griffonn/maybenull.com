@@ -36,7 +36,7 @@ semantics, same diagnostics, different implementation.
 | ts7.0 | `typescript@7.0.2`, the Go compiler, current `latest` |
 | ts7.1β | `typescript@7.1.0-beta`, Go, which the announcement says carries some optimizations upstreamed from tsrs |
 | go-0930 | `typescript@7.1.0-dev.20260930.4`, the Go nightly matching tsrs's upstream pin |
-| tsrs | `tsrs@0.18.0`, native linux-x64 binary |
+| tsrs | `tsrs@0.18.0-ts7.1.0-dev.20260929`, native linux-x64 binary |
 
 I called every native binary directly to skip the Node launcher. Two workloads:
 
@@ -107,8 +107,8 @@ For the TS repo the same chain gives 2.8× single-core, about 1.0× from lazy me
 threads, Go 1.9×), for about 4.4× total. That run set gave 4.4× rather than the 4.2× in the main table.
 
 **The language-and-implementation part is about 3×, on both workloads.** That covers
-Rust, arena allocation, data layout, and whatever memos tsrs can't switch off. The notes
-mention a flow-analysis memo and a union cache. The rest of the headline number depends on
+Rust, arena allocation, data layout, and tsrs's extra checker memos (inference, union,
+indexed-access and flow caches), which per tsrs's docs only `--checkerAssignment go` turns off. The rest of the headline number depends on
 the workload, and on type-fest it's mostly parallel scaling.
 
 ### Are they doing the same work?
@@ -220,7 +220,7 @@ The harness is a fork/`wait4` loop that records wall time, CPU time and `ru_maxr
 run. The compilers were invoked like this (paths shortened):
 
 ```sh
-npm i tsrs@0.18.0 ts6@npm:typescript@6.0.3 ts70@npm:typescript@7.0.2 \
+npm i tsrs@0.18.0-ts7.1.0-dev.20260929 ts6@npm:typescript@6.0.3 ts70@npm:typescript@7.0.2 \
       ts71@npm:typescript@7.1.0-beta ts71dev@npm:typescript@7.1.0-dev.20260930.4
 
 # native binaries, no Node launcher
