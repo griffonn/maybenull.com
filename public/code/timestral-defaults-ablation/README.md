@@ -1,6 +1,6 @@
 # Timestral defaults ablation: reproduction code
 
-Code for the post [Half of Timestral's compute goes to a mirror image](https://maybenull.com/posts/timestral-defaults-ablation/).
+Code for the post [Timestral's defaults, measured](https://maybenull.com/posts/timestral-defaults-ablation/).
 
 ## Pinned versions
 
