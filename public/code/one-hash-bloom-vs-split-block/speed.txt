@@ -1,0 +1,25 @@
+# taskset -c 3, Model name: Intel(R) Xeon(R) Processor @ 2.10GHz, go version go1.26.0 linux/amd64
+n=10000 filter=0.0 MB k=7
+                              add     miss      hit   (median of 5, ns/op)
+  OHBF (gloom scheme)       18.99    23.91    26.05
+  OHBF + fastmod            19.11    21.42    17.25
+  blocked512-k              11.98    16.13    12.94
+  SBBF-512 k8               12.87    18.82    12.67
+  SBBF-256 k8               12.17    18.04    12.23
+  standard KM               13.93    20.73    15.78
+n=1000000 filter=1.3 MB k=7
+                              add     miss      hit   (median of 5, ns/op)
+  OHBF (gloom scheme)       23.84    31.61    30.51
+  OHBF + fastmod            19.93    25.45    22.08
+  blocked512-k              14.86    21.03    15.36
+  SBBF-512 k8               15.63    23.38    16.18
+  SBBF-256 k8               12.96    21.83    15.90
+  standard KM               23.40    27.59    24.23
+n=100000000 filter=134.8 MB k=7
+                              add     miss      hit   (median of 3, ns/op)
+  OHBF (gloom scheme)      144.33    87.92   135.05
+  OHBF + fastmod           139.26    87.22   142.61
+  blocked512-k             114.78    61.27    84.38
+  SBBF-512 k8               90.59    66.13    86.89
+  SBBF-256 k8               84.22    65.78    74.38
+  standard KM              157.50   100.55   162.44
