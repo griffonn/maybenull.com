@@ -1,6 +1,6 @@
 ---
 title: "A5's pentagons are equal-area. Their parents are another story"
-description: A5 v1.0 promises a global grid where every cell has exactly the same area. I measured that claim against H3 and it holds to six decimal places. Then I checked the hierarchy. Rolling a point up with cell_to_parent puts it in the wrong coarse cell 36% of the time. H3's rate is 6–7%.
+description: A5 v1.0 promises a global grid where every cell has exactly the same area. I measured that claim against H3 and it holds to six decimal places. Then I checked the hierarchy. Rolling a point up with cell_to_parent puts it in the wrong coarse cell about 35% of the time. H3's rate is 6–7%.
 date: 2026-10-20
 draft: false
 ---
@@ -105,7 +105,7 @@ What these numbers mean:
   edges. I checked where the misattributed points go: in 5,000 trials every one landed in an
   *edge-sharing neighbor* of the correct cell, never farther away. So the error is local, but
   it's large. For a choropleth with sharp gradients (coastlines, city limits, a single hot
-  cell), 36% of the mass moves one cell over.
+  cell), about 35% of the mass moves one cell over.
 - **The error doesn't grow with depth, but it doesn't shrink either.** Whether you roll up 1
   level or 8, about 35% of points are misplaced. Repeated rounds of "two children stick out"
   settle into a fractal-edged region around the parent that overlaps it by only about 65%.
