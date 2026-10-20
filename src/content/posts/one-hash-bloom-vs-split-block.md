@@ -177,7 +177,7 @@ gap to widen, not close.
   of vector instructions, which would likely widen the gap. Go's compiler did not vectorize anything here.
 - The cross-design speed numbers come from my reimplementation of the gloom scheme. Its
   FPR is bit-identical to the library, and the library-level benchmark shows the same
-  or a slightly larger gap (about 1.6–1.7× on adds and hits at n=100M).
+  or a slightly larger gap (about 1.6–1.8× on adds and hits at n=100M).
 - One shared cloud VM. I report medians, and repeat runs moved individual cells by about
   ±15%. The ordering never changed.
 - 8-byte keys only. Longer keys add the same hashing cost to every design.
