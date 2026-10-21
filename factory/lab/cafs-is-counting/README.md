@@ -36,7 +36,7 @@ mean 16). Every result is checked: rep 0 against `std::sort`, later reps with
 
 ```sh
 ./run.sh              # full grid + ablation, ~45 min, writes results/
-python3 analyze.py    # tables
+python3 analyze.py 64 # tables (or 32)
 python3 plot.py       # figures
 g++ -O2 -march=x86-64-v3 -std=c++20 -o diag diag.cpp && ./diag zipf 10000000 1000 65536 1000000
 ```
@@ -47,6 +47,8 @@ No frequency pinning available (VM); every benchmark ran pinned to one core with
 nothing else running, 5 repetitions per cell, medians reported. Wall-clock for the
 whole set: about 45 minutes.
 
-Note: the first `uint64` grid (`results/grid.csv`) was produced before the
-`key_bits` column and the `runs` distribution were added to `bench.cpp`; the code
-path for those rows is unchanged. `grid_runs_*.csv` hold the `runs` rows.
+Note: the `uint64` grid (`results/grid_bench.csv`) was produced before the
+`key_bits` column and the `runs` distribution were added to `bench.cpp`; its
+`key_bits` column (all 64) was appended afterwards, and the measured code path is
+unchanged. `grid_runs_*.csv` hold the `runs` rows. `REP=n ./diag ...` diagnoses
+the input of repetition n.

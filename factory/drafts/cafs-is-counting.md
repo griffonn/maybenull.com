@@ -1,6 +1,6 @@
 ---
 title: "CAFS, minus the counting"
-description: A new low-cardinality integer sort reports 1.7–3.1× over pdqsort. Most of that comes from counting, which a stock hash map also gives you. The AVX2 bucket adds 5–65% on top, and on skewed data with many distinct values CAFS runs about 2× slower than a plain hash-map count.
+description: A new low-cardinality integer sort reports 1.7–3.1× over pdqsort. For 64-bit keys a plain hash-map count matches it almost everywhere, and on skewed data with many distinct values CAFS is up to 2× slower than that count.
 date: 2026-10-21
 draft: false
 ---
@@ -21,42 +21,43 @@ pays one pass per key byte.
 
 CAFS is a hash-count sort. It walks the array once, counts every distinct value
 in a hash table, sorts the K (value, count) pairs, and writes each value back
-`count` times. The paper's additions sit around that core:
+`count` times. Around that core, the paper adds:
 
 - **The bucket.** The table is an array of 64-byte buckets, one cache line each,
-  holding 4 `uint64` keys (or 8 `int32` keys) and their counts. An AVX2 compare
-  checks every key in a bucket at once. When a bucket is full the value goes to a
-  spill list, which gets sorted with `std::sort` at the end.
+  holding 4 `uint64` keys (or 8 `int32` keys) and their counts. One AVX2 compare
+  checks a whole bucket. When a bucket is full the value goes to a spill list,
+  which is sorted with `std::sort` at the end.
 - **The sampler.** Before allocating, CAFS reads 1,024 evenly spaced elements and
   estimates K with the Chao1 estimator. Chao1 counts how many sampled values
   appeared once or twice and extrapolates the unseen ones. The table gets about
-  8 slots per estimated distinct value.
+  8 slots per estimated distinct value, and it never grows.
+- **Run merging.** Equal neighbors are counted as one run before they reach the
+  table.
 - **Two exits.** If the sample shows at most 8 distinct values, CAFS skips the
   table and counts with 8 unrolled, branch-free compares. If the estimate says K is
   more than N/2, it hands the array to a regular sort.
 
-The paper reports 1.7–3.1× over pdqsort and 1.2–2.3× over Google's vqsort
-when K ≪ N. That comes from 592,770 timed runs on a Core i5-12400F, with five
-general-purpose sorts as the baselines.
+The paper reports 1.7–3.1× over pdqsort and 1.2–2.3× over Google's vqsort when
+K ≪ N. The benchmark covered 592,770 measurement rows on a Core i5-12400F with
+`uint64` keys, against five general-purpose sorts.
 
 ## The question
 
 None of those five baselines count. The paper's future-work section promises
-a `std::unordered_map` hash-count baseline in v2 and says informal runs show CAFS
-winning "by orders of magnitude". v2 doesn't include that baseline.
+a `std::unordered_map` hash-count baseline and says informal runs show CAFS
+winning "by orders of magnitude". v2 doesn't include it.
 
-So the counting itself was never measured on its own. Three things I wanted to know:
+So counting was never measured on its own. Three things I wanted to know:
 
 1. How close does an ordinary hash-map count get to CAFS?
-2. What does the AVX2 bucket add on top of counting? That is an ablation: same
-   algorithm, different table.
+2. What does the AVX2 bucket add? That is an ablation: same algorithm, different
+   table.
 3. What happens on skewed data? The paper's grid is uniform only, and its
    conclusion lists skewed inputs as an open question.
 
 ## Setup
 
-Every counting contender shares the same 4-line emit step as CAFS, so only the
-counting differs:
+The counting contenders share one emit step:
 
 ```cpp
 template <class Pairs>
@@ -74,6 +75,9 @@ static void count_ankerl(Vec& v) {
 }
 ```
 
+CAFS does the same thing, except it radix-sorts the pairs once there are 256 or
+more of them. At large K that favors CAFS.
+
 The contenders:
 
 - **CAFS** from the authors' repo, with pdqsort as its fallback.
@@ -81,77 +85,87 @@ The contenders:
 - **Three counting sorts:** `std::unordered_map`,
   [`ankerl::unordered_dense`](https://github.com/martinus/unordered_dense), and a
   30-line linear-probing table of my own.
-- **The ablation, `cafs_hashmap`.** This is CAFS's own code with one change: the
-  bucket table is replaced by `ankerl::unordered_dense`. The sampler, the ≤8-key
-  path, run merging, the fallback rule and the final radix pass are all unchanged.
+- **The ablation, `cafs_hashmap`.** This is CAFS's own code with the bucket table
+  (and its spill list) replaced by `ankerl::unordered_dense`. The sampler, the
+  ≤8-key path, run merging, the fallback rule and the radix pass over pairs are
+  all unchanged.
 
 The inputs:
 
-- **Key types:** `uint64` (the type the paper benchmarks) and `int32` (where a
-  CAFS bucket holds 8 keys instead of 4).
+- **Key types:** `uint64` (what the paper benchmarks) and `int32` (where a CAFS
+  bucket holds 8 keys instead of 4).
 - **Sizes:** N = 1M and 10M, with K from 2 to 1M.
 - **Distributions:** uniform; Zipf with s = 1, where the most common value is
   about K times as frequent as the rarest; and clustered runs (uniform values in
   runs averaging 16 equal elements).
 
-Every output is checked: the first repetition against `std::sort`, later ones for sortedness (the ablation checks every one against `std::sort`). The machine is a 4-vCPU KVM guest
-on a 2.1 GHz Xeon with AVX-512, 2 MiB of L2 per core and a 260 MiB shared L3. I
-used g++ 13.3 with `-O3 -march=x86-64-v3`. Each benchmark ran pinned to one core,
-5 repetitions per cell, and I report medians. I couldn't pin the CPU frequency,
-and the same cell can move 20–30% between separate runs. Treat gaps under about
-1.2× as ties.
+Every output is checked: the first repetition of each cell against `std::sort`,
+later ones for sortedness, and every ablation run against `std::sort`. The
+machine is a 4-vCPU KVM guest on a 2.1 GHz Xeon with AVX-512, 2 MiB of L2 per core
+and a 260 MiB shared L3. I used g++ 13.3 with `-O3 -march=x86-64-v3`. Each
+benchmark ran pinned to one core, 5 repetitions per cell, and I report medians.
+I couldn't pin the CPU frequency, and the same cell can move 20–30% between
+separate runs. Treat gaps under about 1.2× as ties. All numbers below are at
+N = 10M unless noted.
 
 ## Results
 
 ![ns per element vs distinct values, uniform keys, N=10M](/lab/cafs-is-counting/ns-per-element.png)
 
-**Uniform keys.** In blue and orange, CAFS and a plain hash-map count are close
-for `uint64` from K = 16 up to K = 1M. Against pdqsort (green) they win by the
-same margin. CAFS's lead on the left edge is the ≤8-key path, which never touches
-a hash table. For `int32` CAFS sits clearly lower, and that is where the bucket
-earns something.
+**Uniform keys.**
 
-At N = 10M, in ns per element:
+- **`uint64`:** from K = 16 up, CAFS (blue) and a plain hash-map count (orange)
+  track each other within about 30%. From K = 16 to 16k both beat pdqsort (green)
+  by 1.7–3.1×, which is almost exactly the paper's band. CAFS's lead at the left edge is the ≤8-key
+  path, which never touches a hash table.
+- **`int32`:** CAFS sits lower. Against the better of my two fast counters it is
+  1.1–1.7× faster in 8 of 12 mid-K cells (range 0.8–2.4× across uniform and
+  Zipf). Part of the gap is `ankerl` being oddly slow
+  on `int32` (more under limits).
 
 | keys, distribution, K | pdqsort | hash-map count | CAFS, bucket swapped for hash map | CAFS |
 |---|---:|---:|---:|---:|
 | uint64, uniform, 8 | 4.75 | 3.72 | 2.74 | 2.64 |
 | uint64, uniform, 1,000 | 12.6 | 4.24 | 4.91 | 4.67 |
 | uint64, uniform, 16,384 | 16.9 | 5.74 | 6.05 | 5.60 |
-| int32, uniform, 1,000 | 10.9 | 3.07 | 4.01 | 3.25 |
 | int32, uniform, 16,384 | 21.8 | 4.41 | 4.94 | 3.86 |
 | uint64, Zipf, 65,536 | 15.7 | 7.35 | 8.40 | **14.0** |
 | uint64, Zipf, 262,144 | 18.2 | 11.9 | 13.2 | **23.8** |
 | int32, Zipf, 262,144 | 17.5 | 11.1 | 10.4 | **20.7** |
 
-The last three columns come from one run, so they compare directly. pdqsort
-comes from the main grid run.
+*ns per element, N = 10M. The last three columns come from one ablation run, so
+they compare directly. pdqsort comes from the main grid.*
 
 ![CAFS time divided by hash-map-count time, by distribution](/lab/cafs-is-counting/cafs-vs-count.png)
 
-Reading the two charts:
+What the two charts and the ablation say:
 
-- **Counting is most of the win.** For `uint64` with 16 ≤ K ≤ 16k, a hash-map
-  count gets the same ~3× over pdqsort that CAFS does. CAFS and the counter are
-  within noise of each other.
-- **The bucket helps, modestly.** CAFS against its own hash-map variant shows the
-  AVX2 bucket worth about 5–40% for `uint64` and 10–65% for `int32` at mid K.
-  That is real, but the bucket isn't where the 3× comes from.
+- **For `uint64`, counting is the whole win.** From K = 16 to 16k, CAFS's time
+  divided by the hash-map count's sits between 0.8 and 1.1.
+- **The bucket mostly pays for CAFS's own overhead.** The bucket-swapped CAFS is
+  up to 40% slower than real CAFS for `uint64` and 10–65% slower for `int32`. It is
+  also often slower than the plain count: the sampler, the run scan and the pair
+  radix pass cost something on non-clustered data, and the bucket buys that back.
+  For `int32` it buys back a little more.
 - **The ≤8-key path is CAFS's clearest win.** At K ≤ 8 it is 1.2–1.5× faster
-  than a hash-map count for `uint64` and 1.8–3.2× faster for `int32`. A table
-  can't beat 8 compares with no hash and no branches.
-- **Clustered runs favor CAFS.** It merges equal neighbors before touching the
-  table, so it runs 1.1–1.7× faster than a counter that doesn't, up to K ≈ 262k.
-  At K = 1M it loses, though that cell's repetitions range from 10 to 27 ns.
+  than a hash-map count for `uint64` and 1.8–3.2× faster for `int32` (2–4× at
+  N = 1M). A hash table can't beat 8 compares with no hash and no branches.
+- **Clustered runs favor CAFS, through run merging.** CAFS runs 1.1–1.7× faster
+  than the plain count up to K ≈ 262k. The bucket-swapped version is just as fast,
+  so the bucket isn't the reason. At "K = 1M" (really ~465k distinct values at this
+  N), CAFS is bimodal. On four of five inputs the sampler sees only unique values
+  and falls back to pdqsort, at 26–34 ns. On the fifth it takes the bucket path, at
+  12 ns.
 - **Skewed data with many distinct values goes the other way.** On Zipf data
   with K ≥ 65k, CAFS is 1.5–2.2× slower than the hash-map count. At K = 262k it is
-  slower than pdqsort, the sort it falls back to.
+  slower than pdqsort, the sort it falls back to. At N = 1M the effect is smaller:
+  1.1–1.4× slower for `uint64`, and none for `int32`.
 
 The paper's "orders of magnitude" claim is about `std::unordered_map`, and it
-didn't hold here either. Across all 176 grid cells, CAFS beat a
-`std::unordered_map` count by 0.8× to 8.4×, with a median of 2.7×. The largest
-ratios come from two places: K = 1M on 1M elements, where CAFS has fallen back to
-pdqsort, and K ≤ 8, where it skips the table.
+didn't hold here either. Across all 176 grid cells, CAFS ran between 0.8× (a
+loss) and 8.4× the speed of a `std::unordered_map` count, with a median of 2.7×.
+The largest ratios come from two places: K = 1M on 1M elements, where CAFS has
+fallen back to pdqsort, and K ≤ 8, where it skips the table.
 
 ## Why Zipf breaks it
 
@@ -167,62 +181,66 @@ bucket loop to count spills (`diag.cpp`):
 
 Chao1 extrapolates from how many values appear once or twice in the sample.
 Under Zipf the sample is dominated by a few head values, so the long tail barely
-shows up. With 1,024 samples the estimate tops out around 6k, whatever K is.
-CAFS sizes its table for 6k values, the tail overflows the buckets, and up to a
-quarter of the array lands on the spill list, which is then sorted with
-`std::sort`. The fallback never triggers because spill only reaches 26%, not the
-50% that would trip it.
+shows up. With 1,024 samples the estimate stays under ~6k for every K I tested.
+
+CAFS sizes its fixed table for that estimate. The tail overflows the buckets,
+and up to a quarter of the array lands on the spill list, which is then sorted
+with `std::sort`. The fallback never triggers: it needs more than half the array
+spilled, and the worst case here is 26%.
 
 A growable hash map doesn't care how wrong the estimate is. That's why swapping
-the table fixes the Zipf column in the ablation, while everything else in CAFS
+the table fixes the Zipf rows in the ablation, while everything else in CAFS
 stays the same.
 
-On uniform data the estimate is fine, but the 8-slots-per-value rule makes
-tables large. At K = 262k with `uint64` it allocates 32 MiB. That fits in this
-machine's 260 MiB L3 but not in the 18 MiB L3 of the paper's i5. I didn't test
-how much that matters there.
+On uniform data the estimate is fine, but 8 slots per value makes tables large.
+At K = 262k with `uint64` keys it allocates 32 MiB. That fits in this machine's
+260 MiB L3 but not in the 18 MiB L3 of the paper's i5. I didn't test how much
+that matters there.
 
 ## What it means
 
-If your column has fewer than ~10 distinct values, CAFS's unrolled path is a
-real trick and worth stealing. It's 30 lines, and a hash map can't match it.
+If a column has fewer than ~10 distinct values, CAFS's unrolled path is a real
+trick and worth stealing. It's 30 lines, and a hash map can't match it.
 
 From there up to tens of thousands of distinct values, the speedup over general
-sorts is counting. The first thing to reach for is a good hash map and a
-`fill_n`. CAFS adds a further 5–40% (`uint64`) or 10–65% (`int32`) with the AVX2
-bucket, and more if equal values arrive in runs.
+sorts comes from counting. For 64-bit keys, a good hash map and a `fill_n`
+already get it. Two things add to that: merging runs of equal neighbors before
+the table, if your data arrives clustered, and, for 32-bit keys, CAFS's bucket.
 
-Past that, check your skew. A sampler-sized fixed table is a bet that the sample
-saw the distribution. Zipf data, which describes a lot of real columns, loses
-that bet.
+Past that, check your skew. A table sized once from a sample is a bet that the
+sample saw the distribution. Zipf-like data, which describes a lot of real
+columns, loses that bet.
 
 **Limits of this experiment:**
 
 - One machine, a VM with no frequency pinning, and an L3 far larger than the
-  paper's. Cells are 5 repetitions and can move 20–30% between runs.
+  paper's. Cells are 5 repetitions and can move 20–30% between runs. For example,
+  `int32` uniform K = 1,000 reads 3.6 vs 2.6 ns (count vs CAFS) in the grid and
+  3.1 vs 3.3 in the ablation run.
 - No vqsort or IPS4o, which the paper also beats. I measured against counting, not
   against those.
 - Synthetic inputs only, and one Zipf exponent.
 - `ankerl::unordered_dense` is oddly slow on `int32` keys at small K (5.4 ns at
   K = 8, versus 3.6 ns for `uint64`). It reproduced across runs and I didn't chase
-  it. My 30-line table does 2.0 ns there, so the "counting baseline" for `int32` at
-  tiny K is closer to CAFS than the chart suggests.
+  it. My 30-line table does 2.0 ns there, so the `int32` counting baseline at tiny
+  K is closer to CAFS than the chart suggests.
 
 ## Reproduce it
 
-The code, raw CSVs and the diagnostic are in
-[`lab/cafs-is-counting/`](https://github.com/griffonn/maybenull.com/tree/main/lab/cafs-is-counting).
-The headers are vendored, so no downloads are needed.
+Everything is in
+[`/code/cafs-is-counting/`](/code/cafs-is-counting/README.md), also as one
+[tarball](/code/cafs-is-counting.tar.gz). That covers the benchmark (`bench.cpp`),
+the ablation (`ablate.cpp`), the diagnostic (`diag.cpp`), the scripts, the raw
+CSVs and the vendored headers (CAFS, pdqsort, ska_sort, unordered_dense), so
+nothing needs downloading.
 
 ```sh
-cd lab/cafs-is-counting
-./run.sh              # full grid + ablation, ~45 min on 1 core
-python3 analyze.py    # median tables
-python3 plot.py       # figures (needs matplotlib)
+./run.sh               # full grid + ablation, ~45 min on 1 core
+python3 analyze.py 64  # median tables (or 32)
+python3 plot.py        # figures (needs matplotlib)
 ```
 
-The whole set took about 45 minutes of wall-clock here. The Zipf result alone
-takes 10 seconds:
+The Zipf result alone takes 10 seconds:
 
 ```sh
 g++ -O3 -march=x86-64-v3 -std=c++20 -DNDEBUG -o ablate ablate.cpp

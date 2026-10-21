@@ -1,5 +1,5 @@
 #!/bin/sh
-# Full grid: uint64 and int32 keys, N in {1e6, 1e7}, 4 distributions, 11 K values, 5 reps.
+# Full grid: uint64 and int32 keys, N in {1e6, 1e7}, 4 distributions (runs in its own file), 11 K values, 5 reps.
 # ~45 min on a 4-core Xeon @2.1GHz. Pinned to one core, one process at a time.
 set -e
 cd "$(dirname "$0")"
@@ -11,10 +11,13 @@ for B in bench bench32; do
   OUT=results/grid_$B.csv
   echo "dist,N,K,algo,rep,ns_per_elem,ok,key_bits" > $OUT
   for N in 1000000 10000000; do
-    for D in uniform zipf dense runs; do
+    for D in uniform zipf dense; do
       taskset -c 2 ./$B $D $N 5 $KS >> $OUT
     done
   done
+  OUT=results/grid_runs_$B.csv
+  echo "dist,N,K,algo,rep,ns_per_elem,ok,key_bits" > $OUT
+  for N in 1000000 10000000; do taskset -c 2 ./$B runs $N 5 $KS >> $OUT; done
 done
 
 # Ablation: CAFS with only its bucket table swapped for ankerl::unordered_dense.

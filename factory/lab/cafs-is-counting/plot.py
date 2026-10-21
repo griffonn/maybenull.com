@@ -40,6 +40,7 @@ for ax, bits in zip(axes, (64, 32)):
         y = [med[(bits, "uniform", 10_000_000, k, a)] for k in ks]
         ax.plot(ks, y, color=COL[a], lw=2, marker="o", ms=4, label=LABEL[a])
     ax.set_yscale("log"); style(ax)
+    ax.set_yticks([2, 5, 10, 20, 50]); ax.set_yticklabels(["2", "5", "10", "20", "50"])
     ax.set_title(f"{'uint64' if bits == 64 else 'int32'} keys, N = 10M, uniform", color=INK)
     ax.set_xlabel("distinct values K")
 axes[0].set_ylabel("ns per element (median of 5)")
@@ -50,7 +51,7 @@ fig.savefig("figs/ns-per-element.png", dpi=160, transparent=True)
 
 # Fig 2: CAFS time / hash-map-count time, per distribution. >1 means CAFS is slower.
 fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.6), sharey=True)
-DCOL = {"uniform": "#2a78d6", "zipf": "#eb6834", "runs": "#1baf7a"}
+DCOL = {"uniform": "#6250d6", "zipf": "#e87ba4", "runs": "#008300"}  # distinct from Fig 1's algorithm colors
 for ax, bits in zip(axes, (64, 32)):
     for dist in DCOL:
         ks = Ks(bits, dist, 10_000_000)

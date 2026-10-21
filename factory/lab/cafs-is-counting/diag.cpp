@@ -19,7 +19,8 @@ int main(int argc, char** argv) {
     std::printf("dist,N,K,true_K,K_est,path,buckets,table_bytes,spilled_elems\n");
     for (int a = 3; a < argc; ++a) {
         size_t K = std::strtoull(argv[a], nullptr, 10);
-        Vec v = make(dist, N, K, 1000 * K);
+        const char* rep = std::getenv("REP");  // which repetition's input (bench seeds are 1000*K + rep)
+        Vec v = make(dist, N, K, 1000 * K + (rep ? std::atoi(rep) : 0));
         Vec s = v; std::sort(s.begin(), s.end());
         size_t trueK = std::unique(s.begin(), s.end()) - s.begin();
         auto sr = cafs2::internal::estimate_k(v.data(), N);
