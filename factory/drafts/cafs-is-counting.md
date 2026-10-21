@@ -1,6 +1,6 @@
 ---
 title: "CAFS, minus the counting"
-description: A new low-cardinality integer sort reports 1.7–3.1× over pdqsort. For 64-bit keys a plain hash-map count matches it almost everywhere, and on skewed data with many distinct values CAFS is up to 2.2× slower than that count.
+description: A new low-cardinality integer sort reports 1.7–3.1× over pdqsort. For 64-bit keys a plain hash-map count matches it from 16 to 16k distinct values, and on skewed data with many distinct values CAFS is up to 2.2× slower than that count.
 date: 2026-10-21
 draft: false
 ---
@@ -146,7 +146,8 @@ What the two charts and the ablation say:
   divided by the hash-map count's sits between 0.9 and 1.1 on uniform keys, and
   between 0.9 and 1.25 on Zipf.
 - **The bucket mostly pays for CAFS's own overhead.** The bucket-swapped CAFS is
-  up to 40% slower than real CAFS for `uint64` and 10–65% slower for `int32`. It is
+  up to 40% slower than real CAFS for `uint64` and 10–65% slower for `int32`, for
+  K = 16 to 16k (on Zipf above that, the swap makes it faster; see below). It is
   also often slower than the plain count: the sampler, the run scan and the pair
   radix pass cost something on non-clustered data, and the bucket buys that back.
   For `int32` it buys back a little more.
@@ -158,15 +159,16 @@ What the two charts and the ablation say:
   than the better counter up to K ≈ 65k. The bucket-swapped version is just as fast,
   so the bucket isn't the reason. At "K = 1M" (really ~465k distinct values at this
   N), CAFS is bimodal. On four of five inputs the sampler sees only unique values
-  and falls back to pdqsort, at 26–34 ns. On the fifth it takes the bucket path, at
-  12 ns.
+  and falls back to pdqsort, at 26–34 ns (`uint64`). On the fifth it takes the
+  bucket path, at 12 ns.
 - **Skewed data with many distinct values goes the other way.** On Zipf data
   with K ≥ 65k, CAFS is 1.5–2.2× slower than the hash-map count. At K = 262k it is
   slower than pdqsort, the sort it falls back to. At N = 1M the effect is smaller:
   1.1–1.4× slower for `uint64`, and none for `int32`.
 
 The paper's "orders of magnitude" claim is about `std::unordered_map`, and it
-didn't hold here either. Across all 176 grid cells, CAFS ran between 0.8× (a
+didn't hold here either. Across all 176 grid cells (including a fourth input,
+keys 0..K−1, where nothing in this post changes), CAFS ran between 0.8× (a
 loss) and 8.4× the speed of a `std::unordered_map` count, with a median of 2.7×.
 The largest ratios come from two places: K = 1M on 1M elements, where CAFS has
 fallen back to pdqsort, and K ≤ 8, where it skips the table.
