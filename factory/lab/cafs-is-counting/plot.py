@@ -51,7 +51,7 @@ fig.savefig("figs/ns-per-element.png", dpi=160, transparent=True)
 
 # Fig 2: CAFS time / hash-map-count time, per distribution. >1 means CAFS is slower.
 fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.6), sharey=True)
-DCOL = {"uniform": "#6250d6", "zipf": "#e87ba4", "runs": "#008300"}  # distinct from Fig 1's algorithm colors
+DCOL = {"uniform": "#6250d6", "zipf": "#e87ba4", "runs": "#1baf7a"}  # distinct from Fig 1's algorithm colors
 for ax, bits in zip(axes, (64, 32)):
     for dist in DCOL:
         ks = Ks(bits, dist, 10_000_000)

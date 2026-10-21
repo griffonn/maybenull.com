@@ -1,6 +1,6 @@
 ---
 title: "CAFS, minus the counting"
-description: A new low-cardinality integer sort reports 1.7–3.1× over pdqsort. For 64-bit keys a plain hash-map count matches it almost everywhere, and on skewed data with many distinct values CAFS is up to 2× slower than that count.
+description: A new low-cardinality integer sort reports 1.7–3.1× over pdqsort. For 64-bit keys a plain hash-map count matches it almost everywhere, and on skewed data with many distinct values CAFS is up to 2.2× slower than that count.
 date: 2026-10-21
 draft: false
 ---
@@ -116,7 +116,7 @@ N = 10M unless noted.
 
 - **`uint64`:** from K = 16 up, CAFS (blue) and a plain hash-map count (orange)
   track each other within about 30%. From K = 16 to 16k both beat pdqsort (green)
-  by 1.7–3.1×, which is almost exactly the paper's band. CAFS's lead at the left edge is the ≤8-key
+  by about 1.6–3.2×, close to the paper's 1.7–3.1×. CAFS's lead at the left edge is the ≤8-key
   path, which never touches a hash table.
 - **`int32`:** CAFS sits lower. Against the better of my two fast counters it is
   1.1–1.7× faster in 8 of 12 mid-K cells (range 0.8–2.4× across uniform and
@@ -134,24 +134,28 @@ N = 10M unless noted.
 | int32, Zipf, 262,144 | 17.5 | 11.1 | 10.4 | **20.7** |
 
 *ns per element, N = 10M. The last three columns come from one ablation run, so
-they compare directly. pdqsort comes from the main grid.*
+they compare directly. pdqsort comes from the main grid. Its `int32` K = 16,384
+cell is bimodal (two of five reps at ~15 ns), which is also the spike in the
+right panel above.*
 
 ![CAFS time divided by hash-map-count time, by distribution](/lab/cafs-is-counting/cafs-vs-count.png)
 
 What the two charts and the ablation say:
 
 - **For `uint64`, counting is the whole win.** From K = 16 to 16k, CAFS's time
-  divided by the hash-map count's sits between 0.8 and 1.1.
+  divided by the hash-map count's sits between 0.9 and 1.1 on uniform keys, and
+  between 0.9 and 1.25 on Zipf.
 - **The bucket mostly pays for CAFS's own overhead.** The bucket-swapped CAFS is
   up to 40% slower than real CAFS for `uint64` and 10–65% slower for `int32`. It is
   also often slower than the plain count: the sampler, the run scan and the pair
   radix pass cost something on non-clustered data, and the bucket buys that back.
   For `int32` it buys back a little more.
-- **The ≤8-key path is CAFS's clearest win.** At K ≤ 8 it is 1.2–1.5× faster
-  than a hash-map count for `uint64` and 1.8–3.2× faster for `int32` (2–4× at
-  N = 1M). A hash table can't beat 8 compares with no hash and no branches.
-- **Clustered runs favor CAFS, through run merging.** CAFS runs 1.1–1.7× faster
-  than the plain count up to K ≈ 262k. The bucket-swapped version is just as fast,
+- **The ≤8-key path is CAFS's clearest win.** At K ≤ 8 it is 1.2–1.3× faster
+  than the better of my two counters for `uint64` and 1.1–1.5× for `int32`. At
+  N = 1M, where writing the output costs less of the total, that grows to 2.0–3.8×
+  and 1.0–2.0×. A hash table can't beat 8 compares with no hash and no branches.
+- **Clustered runs favor CAFS, through run merging.** CAFS runs 1.2–1.7× faster
+  than the better counter up to K ≈ 65k. The bucket-swapped version is just as fast,
   so the bucket isn't the reason. At "K = 1M" (really ~465k distinct values at this
   N), CAFS is bimodal. On four of five inputs the sampler sees only unique values
   and falls back to pdqsort, at 26–34 ns. On the fifth it takes the bucket path, at
