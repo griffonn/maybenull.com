@@ -35,7 +35,7 @@ mean 16). Every result is checked: rep 0 against `std::sort`, later reps with
 ## Run
 
 ```sh
-./run.sh              # full grid + ablation, ~70 min, writes results/
+./run.sh              # full grid + ablation, ~45 min, writes results/
 python3 analyze.py    # tables
 python3 plot.py       # figures
 g++ -O2 -march=x86-64-v3 -std=c++20 -o diag diag.cpp && ./diag zipf 10000000 1000 65536 1000000

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Full grid: uint64 and int32 keys, N in {1e6, 1e7}, 4 distributions, 11 K values, 5 reps.
-# ~70 min on a 4-core Xeon @2.1GHz. Pinned to one core, one process at a time.
+# ~45 min on a 4-core Xeon @2.1GHz. Pinned to one core, one process at a time.
 set -e
 cd "$(dirname "$0")"
 g++ -O3 -march=x86-64-v3 -std=c++20 -DNDEBUG -o bench bench.cpp

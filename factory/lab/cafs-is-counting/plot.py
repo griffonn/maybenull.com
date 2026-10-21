@@ -43,19 +43,20 @@ for ax, bits in zip(axes, (64, 32)):
     ax.set_title(f"{'uint64' if bits == 64 else 'int32'} keys, N = 10M, uniform", color=INK)
     ax.set_xlabel("distinct values K")
 axes[0].set_ylabel("ns per element (median of 5)")
-axes[0].legend(loc="upper left", fontsize=9)
-fig.tight_layout()
+h, l = axes[0].get_legend_handles_labels()
+fig.legend(h, l, loc="lower center", ncol=4, fontsize=9)
+fig.tight_layout(rect=(0, 0.08, 1, 1))
 fig.savefig("figs/ns-per-element.png", dpi=160, transparent=True)
 
 # Fig 2: CAFS time / hash-map-count time, per distribution. >1 means CAFS is slower.
 fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.6), sharey=True)
-DCOL = {"uniform": "#2a78d6", "zipf": "#eb6834", "runs": "#1baf7a", "dense": "#eda100"}
+DCOL = {"uniform": "#2a78d6", "zipf": "#eb6834", "runs": "#1baf7a"}
 for ax, bits in zip(axes, (64, 32)):
     for dist in DCOL:
         ks = Ks(bits, dist, 10_000_000)
         if not ks: continue
         y = [med[(bits, dist, 10_000_000, k, "cafs")] / med[(bits, dist, 10_000_000, k, "count_ankerl")] for k in ks]
-        ax.plot(ks, y, color=DCOL[dist], lw=2, marker="o", ms=4, label=dist)
+        ax.plot(ks, y, color=DCOL[dist], lw=2, marker="o", ms=4, label={"runs": "clustered runs"}.get(dist, dist))
     ax.axhline(1, color=INK, lw=1, ls="--")
     ax.set_yscale("log"); style(ax)
     ax.set_yticks([0.25, 0.5, 1, 2, 4]); ax.set_yticklabels(["0.25×", "0.5×", "1×", "2×", "4×"])
