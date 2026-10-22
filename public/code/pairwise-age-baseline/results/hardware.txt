@@ -1,0 +1,6 @@
+CPU(s):                                  4
+Model name:                              Intel(R) Xeon(R) Processor @ 2.10GHz
+               total        used        free      shared  buff/cache   available
+Mem:              15           3           7           0           4          12
+torch 2.14.1+cpu numpy 2.4.6 sklearn 1.9.1 scipy 1.17.1
+No GPU. 4 single-threaded jobs in parallel.
