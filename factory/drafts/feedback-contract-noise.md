@@ -174,7 +174,7 @@ validation n = 25,000, mean of 5 seeds with ±1 SD bands. Hover for values.*
 | boosting attack | 4.4 | 0.7 | 0.7 |
 
 *Reported validation gain in accuracy points after 1,000 submissions, mean of 5
-seeds (spread about ±0.2–0.3). For the boosting row, the validation gain of the
+seeds (SD 0.1–0.3). For the boosting row, the validation gain of the
 final majority vote. \*No submission accepted; the value is the first random
 guess's luck. Fresh-test gain is within ±0.3 of zero in every cell.*
 
@@ -183,7 +183,7 @@ points, against 4.4 for exact feedback. Against small edits it only slows things
 down. At *m* = 50 it lets through two-thirds of exact feedback's fake gain. Real
 accuracy on fresh labels is 50% throughout. The damage takes many submissions to
 build: at *m* = 50 the fake gain is 0.33 vs 0.25 points after 30 submissions and
-1.9 vs 1.3 after 200.
+1.9 vs 1.2 after 200.
 
 The first-step pass rate matches the z = 1 arithmetic. With a champion that
 hasn't been selected yet, the rule accepted 16–18% of noise candidates for *m*
@@ -240,12 +240,13 @@ the same runs with a stop after 5 consecutive submissions without an update
 Three readings. First, a scripted searcher on 25,000 validation rows doesn't
 overfit much: under a point of inflation after 200 submissions, even with exact
 feedback. On coin-flip labels the paired-SE rule cuts it by 39–56% and the
-fixed margin by 48–71%, but the seed-to-seed spread is as large as the
+fixed margin by 48–72%, but the seed-to-seed spread is as large as the
 differences.
 
 Edit size didn't predict the damage the way the pure-noise sweep suggests.
 Blending on learnable labels changed 36–107 rows per edit, the worst range in
-the sweep, yet its inflation stayed under 0.2 points. The worst inflation,
+the sweep, yet its inflation stayed under 0.2 points (not a like-for-like
+comparison: the sweep has no real signal to learn). The worst inflation,
 +0.79, came from blending on coin flips at 1,300–4,000 rows per edit. Real edits
 aren't random flips. My guess, which I didn't test, is that they keep changing
 the same rows near the decision boundary rather than fresh ones.
@@ -283,9 +284,9 @@ edit gets a fresh chance at a one-standard-error fluke (16% against an
 unselected champion, fewer once the champion is itself a lucky pick), and at
 50–100 rows per edit it still lets through two-thirds to three-quarters of
 exact feedback's fake gain. Real searchers sit somewhere between those two
-cases, and my scripted ones overfit less than random flips of the same size
-would: after 200 submissions, 0.79 points vs 1.4–2.4 for blending on coin flips,
-and 0.16 vs about 1.9 for blending on learnable labels. On the evidence here, the biggest lever was the number of submissions:
+cases. Blending on coin flips overfit less than the pure-noise sweep at a
+similar edit size: after 200 submissions, 0.79 points vs 1.4–2.4 in the sweep
+at 1,000–5,000 rows per edit. On the evidence here, the biggest lever was the number of submissions:
 a patience stop, a budget, or both.
 
 What I'd take from it if I were writing an agent harness:
