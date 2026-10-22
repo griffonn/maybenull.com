@@ -1,14 +1,15 @@
 ---
 title: "PopTree, measured: a balanced tree that wants its hot keys far apart"
-description: "I implemented the new dynamically optimal weight-balanced tree. Spread 729 hot keys across the key space and it touches 40% fewer nodes than a static balanced tree; put them side by side and the saving is gone."
+description: "I implemented the new dynamically optimal weight-balanced tree. Spread 729 hot keys across the key space and it touches 38% fewer nodes than a static balanced tree; put them side by side and the saving is gone."
 date: 2026-10-22
 draft: false
 ---
 
 Give a self-adjusting balanced tree 729 hot keys out of 59,049 and it gets a
 lot cheaper, unless the 729 keys are adjacent. Then it costs about what an
-ordinary balanced tree costs, as if nothing were hot. A new paper proves this
-has to happen. I implemented its tree to see how big the effect is.
+ordinary balanced tree costs, as if nothing were hot. A new paper proves that
+something like this has to happen. I implemented its tree to see how big the
+effect is.
 
 ## Context
 
@@ -28,11 +29,12 @@ open since 1985.
 
 [Iacono and Pareek](https://arxiv.org/abs/2610.29574) (October 2026) settle the
 same question for balanced trees. If a tree must stay BB[α] at all times, the
-best it can do, even knowing the future, is a cost they call OPT(X). They also
-build an online tree, the **PopTree**, that achieves it up to a constant. The
-formula has a twist. In the paper's words, arbitrary BSTs reward locality in
-key space, while weight-balanced BSTs "punish it". A search is cheap only if
-nothing *close to it in key order* was searched since that key's last search.
+best it can do, even knowing the future, is a cost they call OPT(X), up to a
+constant factor. They also build an online tree, the **PopTree**, that achieves
+it. The formula has a twist. In the paper's words, "arbitrary BSTs reward
+locality in key-space while weight-balanced BSTs punish it". Under OPT,
+searching x costs little only when no key near x in sorted order has come up
+since x was last searched.
 
 ## The question
 
@@ -45,10 +47,11 @@ pinned down. Three things I wanted to know:
    access patterns, once all three are measured in the same unit?
 3. What does it cost when its adaptation can't help?
 
-The paper already says that a sequential scan costs Θ(log n) per search on any
-BB[α] tree. It also proves that if keys are randomly shuffled, OPT equals the
-working-set bound, which splay trees also achieve. I treat those two as
-predictions to check, not as findings.
+The paper already says that a repeated sequential scan costs Θ(log n) per
+search on any BB[α] tree. It also proves that if keys are randomly shuffled,
+OPT is, in expectation, asymptotically the working-set bound, which splay
+trees also achieve. So PopTree should be within a constant factor of splay on
+shuffled keys. I treat those as predictions to check, not as findings.
 
 ## Setup
 
@@ -76,14 +79,15 @@ top[x] = t;
 That demotion rule is where locality gets punished: popping x pushes its key
 neighbours down.
 
-To compare it with BSTs, I convert the skip list to a BST the usual way. The
-one key on level 1 is the root, and the keys that first appear between two
-consecutive level-ℓ keys form a small balanced subtree. Every structure is
-then charged **nodes touched per search**: the depth of the key before the
-search, plus one. A checker verifies every invariant from the paper after every
-search at n = 3^8, on all 11 workloads (60,000 searches each); none failed. The
-converted tree's worst w(child)/w(parent), sampled every 97 searches, was
-0.128. (The paper guarantees 1/20 after each search for its own layout.)
+To compare it with BSTs, I turn the skip list into a BST the way the paper's
+Appendix B does. The one key on level 1 is the root. The keys that first
+appear between two consecutive level-ℓ keys (at most four) form a group, and
+each group becomes a right-leaning chain, smallest key on top. Every structure
+is then charged **nodes touched per search**: the depth of the key before the
+search, plus one. A checker verifies every invariant from the paper after
+every search at n = 3^8, on all 12 workloads (60,000 searches each); none
+failed. The resulting tree's worst w(child)/w(parent), sampled every 97
+searches, was 0.101, above the 1/20 the paper guarantees after each search.
 
 The opponents:
 
@@ -96,9 +100,9 @@ The opponents:
 
 For the main grid, n = 3^10 = 59,049 keys and m = 2,000,000 searches, with
 5 seeds. I measure only the second million, after everything has adapted (the
-theorem needs m ≥ n log n). I repeated the grid at n = 3^12 with 20 million
+theorem needs m = Ω(n log n)). I repeated the grid at n = 3^12 with 20 million
 searches (3 seeds). The hot-set workloads draw uniformly from 729 keys, placed
-at random, adjacent, or evenly spaced S apart. The whole run takes 9 minutes
+at random, adjacent, or evenly spaced S apart. The whole run takes 10 minutes
 on 4 CPU cores. The unit is nodes touched, not nanoseconds, because PopTree is
 a skip list here, not a pointer-based tree.
 
@@ -107,27 +111,29 @@ a skip list here, not a pointer-based tree.
 Nodes touched per search, n = 59,049, mean of 5 seeds; the bracket is the
 min–max where seeds differ by more than 0.1. Restructure ops are PopTree's
 skip-list promotions plus demotions per search, and they're not counted in its
-column.
+column. Splay's rotations (one fewer than the nodes on its path, so about 20
+per search on uniform access) aren't counted in its column either.
 
 | workload | PopTree | splay | static balanced | offline entropy BST | PopTree restructure ops |
 |---|---|---|---|---|---|
-| uniform | 15.54 | 20.94 | 14.89 | 14.85 | 21.7 |
-| Zipf, shuffled keys | 11.02 [10.94–11.09] | 13.48 | 14.87 [14.51–15.09] | 9.67 [9.37–9.83] | 14.5 |
-| Zipf, adjacent keys | 15.08 [14.98–15.15] | 14.06 | 14.87 [14.75–14.96] | 10.11 | 21.2 |
-| 729 hot keys, random spots | 10.05 | 11.76 | 14.92 | 8.61 | 12.8 |
-| 729 hot keys, 81 apart | 8.92 | 11.76 | 14.91 | 8.61 | 11.4 |
-| 729 hot keys, adjacent | 14.49 [13.66–15.60] | 11.76 | 14.89 | 8.61 | 18.1 |
-| random walk ±8 | 15.27 [15.10–15.73] | 4.45 | 14.89 | 12.57 [11.65–13.27] | 20.3 |
-| sequential scan | 21.45 | 5.42 | 14.89 | 14.89 | 19.5 |
+| uniform | 16.28 | 20.94 | 14.89 | 14.85 | 21.7 |
+| Zipf, shuffled keys | 11.56 [11.50–11.64] | 13.48 | 14.87 [14.51–15.09] | 9.67 [9.37–9.83] | 14.5 |
+| Zipf, adjacent keys | 15.63 [15.47–15.80] | 14.06 | 14.87 [14.75–14.96] | 10.11 | 21.2 |
+| 729 hot keys, random spots | 10.54 | 11.76 | 14.92 | 8.61 | 12.8 |
+| 729 hot keys, 81 apart | 9.27 | 11.76 | 14.91 | 8.61 | 11.4 |
+| 729 hot keys, adjacent | 14.71 [13.94–15.77] | 11.76 | 14.89 | 8.61 | 18.1 |
+| random walk ±8 | 15.59 [15.05–16.13] | 4.45 | 14.89 | 12.57 [11.65–13.27] | 20.3 |
+| scan, ascending | 11.39 | 5.42 | 14.89 | 14.89 | 19.5 |
+| scan, descending | 26.28 | 5.42 | 14.89 | 14.89 | 19.5 |
 
-<div id="pt-workload" style="width:100%;min-height:520px" role="img" aria-label="Horizontal grouped bar chart: nodes touched per search for PopTree, splay tree, static balanced BST and offline entropy BST on seven workloads at n = 59,049."></div>
+<div id="pt-workload" style="width:100%;min-height:560px" role="img" aria-label="Horizontal grouped bar chart: nodes touched per search for PopTree, splay tree, static balanced BST and offline entropy BST on eight workloads at n = 59,049."></div>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 
 *Nodes touched per search, mean of 5 seeds; whiskers show min–max over seeds.
 Hover for values.*
 
-The hot-set rows are one experiment: the same 729 keys, drawn the same way,
-with only the spacing changing.
+The hot-set rows are one experiment: 729 keys, drawn the same way, with only
+their spacing changing.
 
 <div id="pt-stride" style="width:100%;min-height:440px" role="img" aria-label="Line chart: nodes touched per search versus spacing between 729 hot keys (1, 3, 9, 27, 81) for PopTree, splay, static balanced BST and offline entropy BST at n = 59,049."></div>
 <script>
@@ -196,34 +202,37 @@ with only the spacing changing.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
 </script>
-
 *Spacing 1 means the 729 hot keys are adjacent; 81 spreads them across the
 whole key space. Mean of 5 seeds, whiskers min–max.*
 
 Plainly:
 
-- **Spacing alone moves PopTree from 14.5 to 8.9 nodes.** With the hot keys 81
-  apart, it's within 4% of the offline entropy tree (8.61), which knew the hot
+- **Spacing alone moves PopTree from 14.7 to 9.3 nodes.** With the hot keys 81
+  apart, it's within 8% of the offline entropy tree (8.61), which knew the hot
   set in advance. With them adjacent, it's at the static tree's 14.9, and on
-  one seed it was worse (15.60). Each tripling of the spacing saves 1.0 to
+  one seed it was worse (15.77). Each tripling of the spacing saves 0.6 to
   1.7 nodes.
 - **Splay doesn't care about spacing.** It's 11.76 in every hot-set row, so it
   loses to PopTree once the keys are 27 or more apart, and wins when they're
   closer. It pays for its adaptivity on uniform access: 20.9 nodes against the
   static tree's 14.9.
-- **The paper's two predictions hold.** Sequential and random-walk access get
-  nothing from PopTree, while splay gets 5.4 and 4.5 nodes. With Zipf
-  popularity over shuffled keys, PopTree beats splay (11.0 vs 13.5). Over
-  adjacent keys, the same Zipf popularity gets PopTree nothing (15.1 vs 14.9
-  static).
-- **When it can't help, it costs.** On uniform access it's 4% worse than the
-  static tree, and it does 22 promotions and demotions per search to get
-  there. On a sequential scan it touches 44% more nodes than the static tree.
-  That number depends on a detail the paper leaves open (see the limits
-  below), but it never got below the static tree's 14.89.
+- **The paper's predictions hold, and the constants are visible.** With Zipf
+  popularity over shuffled keys, PopTree lands within a constant of splay as
+  predicted; in my runs it's ahead, 11.6 against 13.5. Random walks get
+  nothing from it (15.6 against the static 14.9), while splay gets 4.5.
+- **Adjacent popularity gets nothing either.** The same Zipf distribution over
+  adjacent keys costs PopTree 15.6 against the static tree's 14.9. That's the
+  locality penalty again, on a workload that isn't a toy.
+- **When it can't help, it costs.** On uniform access it's 9% worse than the
+  static tree, and it does 22 promotions and demotions per search to get there.
+- **Scans are a layout story.** On every scan search, the key is at the bottom
+  level of the skip list (level 11 of 11), so PopTree never adapts, as the
+  theorem says. What that costs in BST nodes depends on the direction:
+  the right-leaning chains make an ascending scan cheap (11.4) and a
+  descending one expensive (26.3).
 - **Larger n doesn't change the picture.** At n = 531,441, the ratio of
-  PopTree to static is 1.05 on uniform, 0.72 on shuffled Zipf, 0.68 on the
-  spread hot set, 1.00 on the adjacent one and 1.45 on the scan.
+  PopTree to static is 1.10 on uniform, 0.75 on shuffled Zipf, 0.71 on the
+  81-apart hot set and 1.04 on the adjacent one.
 
 ## What it means
 
@@ -234,48 +243,50 @@ holds at least an α fraction of x's weight. Each step down its left spine
 keeps at most a 1−α fraction of the weight, so reaching the bottom of a
 subtree of size s takes at least log(s)/log(1/(1−α)) steps. If x sits near the
 root, its subtree is large, so x+1 sits about log n deep. The paper's Lemma 5
-generalizes this: of two keys r apart, one must be Ω(log(n/r)) deep. A balanced tree can
-keep 729 keys spread over the whole space all near the top. It can't do that
-for 729 neighbours, because at most a few of them can be shallow at once.
-PopTree's demotion rule is that argument turned into code. The offline entropy
-tree has no balance rule, so it packs adjacent hot keys into a compact
+generalizes this: of two keys r apart, one must be Ω(log(n/r)) deep. A balanced
+tree can keep 729 keys spread over the whole space all near the top. It can't
+do that for 729 neighbours, because at most a few of them can be shallow at
+once. PopTree's demotion rule is that argument turned into code. The offline
+entropy tree has no balance rule, so it packs adjacent hot keys into a compact
 subtree, and its cost (8.61) doesn't depend on spacing.
 
 Takeaways:
 
 - If you want a self-adjusting tree that stays balanced, its benefit depends on
   where your hot keys are, not just how many there are. Random IDs and hashed
-  keys are its best case. Time-ordered keys, which make the hottest keys the
-  newest and adjacent, are its worst.
-- For scans, walks and recent-timestamp keys, a balanced tree can't adapt, by
+  keys are its best case. Keys whose hot set is a contiguous range, such as
+  recent timestamps or sequential IDs, should be close to its worst, though I
+  only tested synthetic versions of that.
+- For scans, walks and contiguous hot ranges, a balanced tree can't adapt, by
   theorem. You need a splay tree, a finger search, or a cache in front of the
   tree.
 - On access patterns it can't exploit, PopTree touches more nodes than doing
-  nothing and does 20-odd restructuring operations per search. A plain balanced
-  tree is the safer default unless you know your hot keys are spread out.
+  nothing and does about 20 restructuring operations per search. A plain
+  balanced tree is the safer default unless you know your hot keys are spread
+  out.
 
 ### Where it breaks
 
 - **The unit is nodes touched, not time.** I didn't build a pointer-based
   PopTree with rotations. The restructuring column shows that its upkeep is not
   free: about 11 to 27 skip-list operations per search across all runs.
-- **My BST is my conversion.** I use the standard skip list → B-tree → BST
-  layout with median splits inside each group. The paper's appendix may lay
-  groups out differently, which would shift PopTree's column by a constant
-  factor. The ratios between workloads are what I'd trust most.
-- **One free choice matters on scans.** When gap repair has a choice of
-  children to promote, the paper allows any. I promote the most recently
-  searched one. Promoting the leftmost child instead gives the same results on
-  every workload I tried to within 0.03 nodes, except the sequential scan. On
-  the scan it drops from 21.45 to 16.67 nodes, still 12% above the static tree
-  (seed 1 at n = 3^10; the same direction at n = 3^8).
+- **The BST layout matters by a constant.** The paper's chains are one way to
+  lay out each group. A median-split layout, which I also measured, costs 1–6%
+  less on every non-scan workload at both sizes and flips the scans (21.4
+  ascending, 16.2 descending at n = 3^10). The spacing curve, and at n = 3^10
+  the splay crossover between spacings 9 and 27, hold in both. All columns are in `results/summary.json`, along with the
+  layout-free skip-list level.
+- **One free choice I made.** When gap repair can promote one of several
+  children, the paper allows any. I promote the most recently searched one.
+  Promoting the leftmost instead changes PopTree's cost by at most 0.06 nodes on
+  the six workloads I checked (`ablate_fill.sh`).
 - **Static key set, searches only.** The paper's model has no inserts or
   deletes, and n is a power of three. So is mine.
 - **Synthetic workloads.** The hot-set rows are deliberately clean. Real traces
   mix adjacency and spread, and OPT is about how they mix.
 - **OPT(X) has unknown constants.** I evaluated the formula as written. Across
-  the 11 workloads its rank correlation with PopTree's cost is 0.91 at
-  n = 3^10 and 0.89 at n = 3^12 (values in `results/summary.json`), but it
+  the 12 workloads, its rank correlation with PopTree's skip-list level (the
+  quantity the paper bounds) is 0.92 at n = 3^10 and 0.87 at n = 3^12. It
   can't tell you the absolute cost.
 
 ## Reproduce it
@@ -287,7 +298,7 @@ run scripts and the raw results. No dependencies beyond g++ and Python 3's
 standard library.
 
 ```sh
-./run.sh            # invariant check + both grids, ~9 min on 4 cores
+./run.sh            # invariant check + both grids, ~10 min on 4 cores
 ./ablate_fill.sh    # gap-repair ablation, ~1 min
 python3 analyze.py && python3 chart_data.py
 ```

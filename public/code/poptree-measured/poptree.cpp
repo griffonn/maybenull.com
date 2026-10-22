@@ -114,7 +114,9 @@ struct SkipPopList {
     // Nodes touched to find x in the BST obtained from this skip list: the level-1 key is the
     // root; between two consecutive keys of level l, the keys new at level l+1 form a group
     // laid out as a median-split balanced BST (the usual B-tree -> BST conversion).
-    int bst_cost(ll x, vector<int>* path = nullptr) const {
+    // chain = true: the paper's Appendix B layout, each group as a right-leaning chain
+    // (smallest key on top, each next key the right child of the previous one).
+    int bst_cost(ll x, bool chain = false) const {
         ll lo = 0, hi = n + 1;
         int cost = 0;
         static vector<int> g;
@@ -126,13 +128,23 @@ struct SkipPopList {
             } else {
                 for (ll y = lo + 1; y < hi; y++) g.push_back((int)y);
             }
+            ll nlo = lo, nhi = hi;
+            if (chain) {
+                size_t t = 0;
+                while (t < g.size()) {
+                    cost++;
+                    if (g[t] == x) return cost;
+                    if (x < g[t]) { nhi = g[t]; break; }
+                    nlo = g[t]; t++;
+                }
+                lo = nlo; hi = nhi;
+                continue;
+            }
             // descend the balanced BST over g
             int a = 0, z = (int)g.size() - 1;
-            ll nlo = lo, nhi = hi;
             while (a <= z) {
                 int mid = (a + z + 1) / 2;
                 cost++;
-                if (path) path->push_back(g[mid]);
                 if (g[mid] == x) return cost;
                 if (x < g[mid]) { nhi = g[mid]; z = mid - 1; } else { nlo = g[mid]; a = mid + 1; }
             }
@@ -175,8 +187,10 @@ struct SkipPopList {
     }
 
     // smallest alpha over the converted BST: min over nodes of w(child)/w(parent), w = size+1
-    double min_alpha() const {
-        // build explicit BST by inserting along bst_cost paths is O(n^2); instead recurse on groups
+    mutable bool chain_layout = false;
+    double min_alpha(bool chain = false) const {
+        // recurse on groups instead of building the BST explicitly
+        chain_layout = chain;
         double best = 1.0;
         rec(1, 0, n + 1, best);
         return best;
@@ -194,7 +208,7 @@ struct SkipPopList {
     }
     ll rec_group(int l, const vector<int>& g, int a, int z, ll lo, ll hi, double& best) const {
         if (a > z) return rec(l + 1, lo, hi, best);
-        int mid = (a + z + 1) / 2;
+        int mid = chain_layout ? a : (a + z + 1) / 2;
         ll wl = rec_group(l, g, a, mid - 1, lo, g[mid], best);
         ll wr = rec_group(l, g, mid + 1, z, g[mid], hi, best);
         ll w = wl + wr;
@@ -304,6 +318,7 @@ static vector<int> make_workload(const string& w, ll m, uint64_t seed) {
     const ll W = pow3[max(1, L - 4)];   // working-set size for the hot-set workloads (729 at n = 3^10)
     if (w == "uniform") { for (auto& x : X) x = (int)uni(1, n); }
     else if (w == "sequential") { for (ll i = 0; i < m; i++) X[i] = (int)(i % n + 1); }
+    else if (w == "sequential_desc") { for (ll i = 0; i < m; i++) X[i] = (int)(n - i % n); }
     else if (w == "walk") {         // random walk, steps of +-1..+-8, reflecting at the ends
         ll x = n / 2;
         for (auto& v : X) { ll s = uni(1, 8) * ((rng() & 1) ? 1 : -1); x += s; if (x < 1) x = 2 - x; if (x > n) x = 2 * n - x; v = (int)x; }
@@ -349,7 +364,8 @@ int main(int argc, char** argv) {
     MaxSeg seg; seg.init();
     vector<ll> lastSeen(n + 1, -1);
     vector<int> edep = entropy_depth(X);
-    double s_ent = 0;
+    double s_ent = 0, s_chain = 0;
+    double min_alpha_chain_seen = 1.0;
     if (check) sp.check(-1);
 
     // Measure over the second half only, after every structure has adapted (warm-up = first half).
@@ -364,6 +380,7 @@ int main(int argc, char** argv) {
         if (i == warm) { dem0 = sp.demotions; pro0 = sp.promotions; }
         int lvl = sp.top[x];
         int cpop = sp.bst_cost(x);
+        int cchain = sp.bst_cost(x, true);
         auto a0 = chrono::steady_clock::now();
         sp.search(x, i);
         auto a1 = chrono::steady_clock::now();
@@ -384,24 +401,28 @@ int main(int argc, char** argv) {
         seg.set((int)x, i); lastSeen[x] = i;
         if (check) sp.check(i);
         if (i >= warm) {
-            s_pop += cpop; s_ent += edep[x]; s_lvl += lvl; s_splay += cspl; s_static += csta; cnt++;
+            s_pop += cpop; s_chain += cchain; s_ent += edep[x]; s_lvl += lvl; s_splay += cspl; s_static += csta; cnt++;
             t_pop += chrono::duration<double>(a1 - a0).count();
             t_splay += chrono::duration<double>(a2 - a1).count();
             if (rep) { s_opt1 += o1; s_opt2 += o2; s_opt += o1 + o2; cnt_rep++; }
         }
-        if (check && (i % 97 == 0 || i == m - 1)) min_alpha_seen = min(min_alpha_seen, sp.min_alpha());
+        if (check && (i % 97 == 0 || i == m - 1)) {
+            min_alpha_seen = min(min_alpha_seen, sp.min_alpha());
+            min_alpha_chain_seen = min(min_alpha_chain_seen, sp.min_alpha(true));
+        }
     }
     double ma = check ? min_alpha_seen : sp.min_alpha();
+    double mac = check ? min_alpha_chain_seen : sp.min_alpha(true);
     printf("{\"L\":%d,\"n\":%lld,\"m\":%lld,\"workload\":\"%s\",\"seed\":%llu,"
-           "\"poptree\":%.4f,\"poptree_level\":%.4f,\"splay\":%.4f,\"static\":%.4f,\"entropy_static\":%.4f,"
+           "\"poptree\":%.4f,\"poptree_median\":%.4f,\"poptree_level\":%.4f,\"splay\":%.4f,\"static\":%.4f,\"entropy_static\":%.4f,"
            "\"opt_term1\":%.4f,\"opt_term2\":%.4f,\"opt\":%.4f,\"repeat_frac\":%.4f,"
-           "\"restructure_ops\":%.4f,\"min_alpha\":%.5f,\"log2n\":%.4f,"
+           "\"restructure_ops\":%.4f,\"min_alpha\":%.5f,\"min_alpha_median\":%.5f,\"log2n\":%.4f,"
            "\"ns_poptree_update\":%.1f,\"ns_splay_access\":%.1f,\"checked\":%s}\n",
            L, n, m, w.c_str(), (unsigned long long)seed,
-           s_pop / cnt, s_lvl / cnt, s_splay / cnt, s_static / cnt, s_ent / cnt,
+           s_chain / cnt, s_pop / cnt, s_lvl / cnt, s_splay / cnt, s_static / cnt, s_ent / cnt,
            cnt_rep ? s_opt1 / cnt_rep : 0, cnt_rep ? s_opt2 / cnt_rep : 0, cnt_rep ? s_opt / cnt_rep : 0,
            (double)cnt_rep / cnt,
-           (double)(sp.demotions - dem0 + sp.promotions - pro0) / cnt, ma, log2((double)n),
+           (double)(sp.demotions - dem0 + sp.promotions - pro0) / cnt, mac, ma, log2((double)n),
            1e9 * t_pop / cnt, 1e9 * t_splay / cnt, check ? "true" : "false");
     return 0;
 }
