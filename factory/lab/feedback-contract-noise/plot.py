@@ -16,7 +16,7 @@ plt.rcParams.update({"text.color": INK, "axes.labelcolor": INK, "xtick.color": I
                      "axes.edgecolor": INK, "font.size": 11, "axes.spines.top": False, "axes.spines.right": False})
 
 # Figure 1: fake gain after 1000 pure-noise submissions vs edit size m
-fig, ax = plt.subplots(figsize=(7.5, 4.2))
+fig, ax = plt.subplots(figsize=(7.5, 5.0))
 for rule in ["exact", "pse", "ladder"]:
     ms = sorted({int(k.split("/")[1]) for k in S["sim_local"] if k.startswith(rule + "/")})
     v = np.array([np.mean(S["sim_local"][f"{rule}/{m}"]["val_gain"]) * 100 for m in ms])
@@ -33,7 +33,7 @@ ax.set_xscale("log")
 ax.set_xlabel("predictions changed per submission (m), validation n = 25,000")
 ax.set_ylabel("reported accuracy gain over 50%\n(percentage points)")
 ax.set_title("Pure noise, 1,000 submissions: what each harness lets through", color=INK, fontsize=12)
-ax.grid(True, color=GRID, lw=0.8); ax.legend(frameon=False, fontsize=10)
+ax.grid(True, color=GRID, lw=0.8); ax.legend(frameon=False, fontsize=9.5, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3)
 fig.tight_layout(); fig.savefig("figs/noise-sweep.png", dpi=150, transparent=True)
 
 print("ok")

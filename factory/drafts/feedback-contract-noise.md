@@ -96,7 +96,7 @@ then submit the majority vote of the ones the harness called good.
 **A scripted hill-climber.** The paper's agents are Codex and Claude. Mine is a
 script, so it is cruder but reproducible. It uses a HistGradientBoostingClassifier
 on synthetic tabular data (`make_classification`: 30 features, 10 informative,
-30% label noise; 20k train, 25k validation, 50k test). The `null` variant
+30% of labels randomized; 20k train, 25k validation, 50k test). The `null` variant
 replaces the labels with coin flips. Two searchers, 200 submissions each, 5 seeds
 per rule:
 
@@ -127,8 +127,8 @@ minus fresh-test gain, the part of the reported progress that isn't real.
 | boosting attack | 4.5 | 0.7 | 0.7 |
 
 *Reported validation gain in accuracy points after 1,000 submissions, mean of 5
-seeds (spread about ±0.2–0.3). Fresh-test gain is within ±0.3 of zero in every
-cell.*
+seeds (spread about ±0.2–0.3). For the boosting row, the validation gain of the
+final majority vote. Fresh-test gain is within ±0.3 of zero in every cell.*
 
 The paired-SE rule stops the boosting attack, as Blum and Hardt showed: 0.7
 points, against 4.5 for exact feedback. Against small edits it only slows things
@@ -149,7 +149,8 @@ At *m* = 1 the rule then behaves exactly like exact feedback. Blum and Hardt
 specify the sample standard deviation, which blocks *m* = 1. It doesn't help at
 *m* = 2. The same tie can happen whenever *m* is a perfect square: at *m* = 100
 the sample version gives 3.8 points instead of 4.3, which is the bump in the
-blue curve. At the other sizes in the table the two versions agree.
+blue curve. At the other sizes in the table the two versions agree (at
+*m* = 10,000 an exact tie is too rare to matter).
 
 The curves rise and then fall because the gain eats itself. A champion that is
 lucky on the validation set loses some of that luck with every flipped row: of
@@ -239,10 +240,12 @@ What I'd take from it if I were writing an agent harness:
 - Prefer the paired-SE rule over a fixed margin. The one fixed margin I tried
   (0.005) blocked every real gain here, and the paper argues that a margin small
   enough to let real gains through is hard to pick in advance.
-- Keep the patience stop and treat it as the main defense. As the paper's
-  contract already says, count accepted updates, not raw improvements.
+- Keep the patience stop, and treat it as at least as important as the
+  threshold: fake gain builds slowly (0.25 points after 30 noise submissions at
+  *m* = 50, 3.9 after 1,000). As the paper's contract already says, count
+  accepted updates, not raw improvements.
 - Score the final model once on a test set the loop never saw. That is the only
-  number in this post that never lied.
+  number here that selection can't touch.
 
 **Limits.** My searchers are scripts, not LLM agents. An LLM agent edits code,
 not just hyperparameters, and its edit sizes may be different. Everything here
