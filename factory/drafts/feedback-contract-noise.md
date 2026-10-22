@@ -173,8 +173,10 @@ change 1,300–4,000.
 |---|---|---:|---:|---:|---:|---:|
 | tweak, coin flips | exact | 3.6 | +0.46 | −0.07 | +0.52 ± 0.50 | +0.25 (stops at 7.6) |
 | | paired SE | 0.4 | +0.18 | −0.05 | +0.23 ± 0.34 | +0.15 (6.2) |
+| | fixed 0.005 | 0.2 | +0.10 | −0.04 | +0.15 ± 0.33 | +0.15 (6.2) |
 | tweak, learnable | exact | 2.4 | +0.24 | +0.07 | +0.17 ± 0.11 | +0.13 (7.8) |
 | | paired SE | 1.4 | +0.27 | +0.14 | +0.13 ± 0.17 | +0.08 (8.0) |
+| | fixed 0.005 | 0.0 | 0.00 | 0.00 | 0.00 | 0.00 (6.0) |
 | ensemble, coin flips | exact | 8.8 | +0.64 | −0.15 | +0.79 ± 0.18 | +0.35 (13.0) |
 | | paired SE | 1.8 | +0.56 | +0.08 | +0.48 ± 0.40 | +0.09 (6.4) |
 | | fixed 0.005 | 0.6 | +0.33 | −0.08 | +0.41 ± 0.39 | +0.18 (6.8) |
@@ -209,9 +211,9 @@ That is the floor the paper adds, with its constant unstated.
 
 Patience has a cost too, but a small one here. With a patience of 5, exact
 feedback kept +0.35 of the +0.38 real ensembling gain and the paired-SE rule
-kept +0.27 (5 seeds, within noise of each other). The fixed margin kept nothing
-on learnable labels with either searcher, so it isn't in the table's tweak
-rows.
+kept +0.27 (5 seeds, within noise of each other). On coin-flip tweaks the fixed
+margin had the lowest inflation (+0.15, within noise of the others); on
+learnable labels it accepted nothing with either searcher.
 
 ## What it means
 
@@ -234,9 +236,9 @@ What I'd take from it if I were writing an agent harness:
 - Log *m*, the number of validation predictions each submission changes. It
   tells you which regime you're in. The harness can log it without releasing
   anything, and it needs no labels.
-- Use the paired-SE rule over a fixed margin. A fixed margin is either too big,
-  blocking real gains, or too small to matter, and you can't tell which in
-  advance.
+- Prefer the paired-SE rule over a fixed margin. The one fixed margin I tried
+  (0.005) blocked every real gain here, and the paper argues that a margin small
+  enough to let real gains through is hard to pick in advance.
 - Keep the patience stop and treat it as the main defense. As the paper's
   contract already says, count accepted updates, not raw improvements.
 - Score the final model once on a test set the loop never saw. That is the only
