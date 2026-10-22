@@ -28,7 +28,7 @@ v1 = [np.mean(S["sim_local"][f"pse1/{m}"]["val_gain"]) * 100 for m in ms]
 ax.plot(ms, v1, "--", color=C["pse"], lw=1.2, label="1 paired SE, sample std")
 ms = sorted({int(k.split("/")[1]) for k in S["sim_local"] if k.startswith("exact/")})
 t = [np.mean(S["sim_local"][f"exact/{m}"]["test_gain"]) * 100 for m in ms]
-ax.plot(ms, t, ":", color=INK, lw=1.5, label="fresh-test gain (any rule)")
+ax.plot(ms, t, ":", color=INK, lw=1.5, label="fresh-test gain (exact; other rules similar)")
 ax.set_xscale("log")
 ax.set_xlabel("predictions changed per submission (m), validation n = 25,000")
 ax.set_ylabel("reported accuracy gain over 50%\n(percentage points)")

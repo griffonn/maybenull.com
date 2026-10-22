@@ -1,5 +1,5 @@
 ---
-title: "One standard error lets one noise submission in six through"
+title: "A one-standard-error gate slows noise-chasing. It doesn't stop it"
 description: "A paired-standard-error release rule for ML agents stops random-guess attacks, but on pure noise it still lets a searcher making small correlated edits keep about two-thirds of exact feedback's fake gain (3.9 vs 5.8 points after 1,000 tries)."
 date: 2026-10-22
 draft: false
@@ -74,8 +74,8 @@ size of the paper's Criteo validation split. Three release rules:
 
 "Paired SE" is Algorithm 1 as printed, with no floor. The paper's text adds one,
 η<sub>min</sub> = *c*·*n*<sup>−1/3</sup>·log<sup>1/3</sup>(*kn*), with *c*
-unstated. Any floor above about 0.005 turns the rule into the fixed-margin row
-here. Algorithm 1 also writes "std" without saying which: I use the population
+unstated. Any floor above about 0.005 turns the rule into a fixed margin at
+least as strict as the 0.005 row here. Algorithm 1 also writes "std" without saying which: I use the population
 standard deviation (numpy's default) and check the sample version separately.
 
 **Pure noise.** Labels are coin flips, so every model's true accuracy is 50% and
@@ -133,7 +133,9 @@ cell.*
 The paired-SE rule stops the boosting attack, as Blum and Hardt showed: 0.7
 points, against 4.5 for exact feedback. Against small edits it only slows things
 down. At *m* = 50 it lets through two-thirds of exact feedback's fake gain. Real
-accuracy on fresh labels is 50% throughout.
+accuracy on fresh labels is 50% throughout. The damage takes many submissions to
+build: at *m* = 50 the fake gain is 0.33 vs 0.25 points after 30 submissions and
+1.9 vs 1.3 after 200.
 
 The first-step pass rate matches the z = 1 arithmetic. With a champion that
 hasn't been selected yet, the rule accepted 16–18% of noise candidates for *m*
@@ -145,10 +147,9 @@ standard deviation (`np.std`'s default), a one-row improvement always clears the
 bar: the threshold is √(1 − 1/*n*)/*n*, just under the 1/*n* the score moves by.
 At *m* = 1 the rule then behaves exactly like exact feedback. Blum and Hardt
 specify the sample standard deviation, which blocks *m* = 1. It doesn't help at
-*m* = 2. The same edge appears whenever *m* is a perfect square, where an
-improvement of exactly √*m* rows sits on the bar: at *m* = 100 the sample
-version gives 3.8 points instead of 4.3, which is the bump in the blue curve.
-At the other sizes in the table the two versions agree.
+*m* = 2. The same tie can happen whenever *m* is a perfect square: at *m* = 100
+the sample version gives 3.8 points instead of 4.3, which is the bump in the
+blue curve. At the other sizes in the table the two versions agree.
 
 The curves rise and then fall because the gain eats itself. A champion that is
 lucky on the validation set loses some of that luck with every flipped row: of
@@ -172,6 +173,8 @@ change 1,300–4,000.
 |---|---|---:|---:|---:|---:|---:|
 | tweak, coin flips | exact | 3.6 | +0.46 | −0.07 | +0.52 ± 0.50 | +0.25 (stops at 7.6) |
 | | paired SE | 0.4 | +0.18 | −0.05 | +0.23 ± 0.34 | +0.15 (6.2) |
+| tweak, learnable | exact | 2.4 | +0.24 | +0.07 | +0.17 ± 0.11 | +0.13 (7.8) |
+| | paired SE | 1.4 | +0.27 | +0.14 | +0.13 ± 0.17 | +0.08 (8.0) |
 | ensemble, coin flips | exact | 8.8 | +0.64 | −0.15 | +0.79 ± 0.18 | +0.35 (13.0) |
 | | paired SE | 1.8 | +0.56 | +0.08 | +0.48 ± 0.40 | +0.09 (6.4) |
 | | fixed 0.005 | 0.6 | +0.33 | −0.08 | +0.41 ± 0.39 | +0.18 (6.8) |
@@ -185,7 +188,7 @@ the same runs with a stop after 5 consecutive submissions without an update
 
 Three readings. First, a scripted searcher on 25,000 validation rows doesn't
 overfit much: under a point of inflation after 200 submissions, even with exact
-feedback. The paired-SE rule cuts it by 40–55% on coin-flip labels, but the
+feedback. The paired-SE rule cuts it by 39–56% on coin-flip labels, but the
 seed-to-seed spread is as large as the difference.
 
 Second, the patience stop does as much as the threshold. Exact feedback plus
@@ -204,6 +207,12 @@ is that big. The margin in Blum and Hardt's theorem is worse:
 *k* = 200 with the constant set to 1, more than 20 times the whole real gain.
 That is the floor the paper adds, with its constant unstated.
 
+Patience has a cost too, but a small one here. With a patience of 5, exact
+feedback kept +0.35 of the +0.38 real ensembling gain and the paired-SE rule
+kept +0.27 (5 seeds, within noise of each other). The fixed margin kept nothing
+on learnable labels with either searcher, so it isn't in the table's tweak
+rows.
+
 ## What it means
 
 The paired-SE rule is a sensible default with a narrow guarantee. Its
@@ -213,9 +222,12 @@ one. It only slows a searcher that makes many correlated small edits: each
 edit gets a fresh chance at a one-standard-error fluke (16% against an
 unselected champion, fewer once the champion is itself a lucky pick), and at
 50–100 rows per edit it still lets through two-thirds to three-quarters of
-exact feedback's fake gain. Agents that tune, blend and patch are closer
-to the second kind. On the evidence here, the thing that actually limits damage
-is the number of submissions: a patience stop, a budget, or both.
+exact feedback's fake gain. Which kind your agent is depends on the edit. In my
+runs, adding a model to a blend on real data changed 36–107 rows, squarely in
+the worst range. Hyperparameter tweaks on noise changed a third of the
+predictions, where every rule's fake gain is small. On the evidence here, the
+thing that actually limits damage is the number of submissions: a patience
+stop, a budget, or both.
 
 What I'd take from it if I were writing an agent harness:
 
@@ -236,7 +248,7 @@ is 0-1 loss. The paper scores Criteo with AUC, which is not an average of
 per-example losses, and it doesn't say what vector the standard deviation is
 taken over. Validation size is fixed at 25,000. Smaller sets should make every
 effect here larger (untested here; the paper's Table 3 reports larger gaps at
-smaller validation sizes). Five seeds separate the pure-noise curves cleanly; for the
+smaller validation sizes for exact feedback). Five seeds separate the pure-noise curves cleanly; for the
 hill-climber they don't separate paired SE from exact feedback on inflation. I
 didn't test Thresholdout or other differential-privacy mechanisms.
 
