@@ -18,6 +18,7 @@ baseline and the split?
 | `const_random_test.py` | Constant-predictor MAE when the 200 test faces are drawn at random, as the repo does. |
 | `analyze.py` | Markdown table + `results/summary.csv`. |
 | `plot.py` | `figs/mae-vs-n.png`, `figs/scatter-n100.png`. |
+| `chart_data.py` | Writes `figs/*.json`, the data behind the interactive charts in the post. |
 | `run.sh` | Main grid: 3,000 steps, N ∈ {100, 300, 1000}. ~80 min on 4 cores. |
 | `run_long.sh` | 10,000-step runs at N=100, both arms, 3 seeds. ~25 min. |
 | `run_raw.sh` | `mse_raw` at N=100, 5 seeds. ~8 min. |
