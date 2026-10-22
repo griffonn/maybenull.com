@@ -35,7 +35,7 @@ baseline and the split?
 ## Differences from the paper
 
 64×64 inputs instead of 192×192 (CPU budget), no 8× test-time augmentation for any arm, fixed
-3,000 steps with the final checkpoint reported (plus a 10,000-step pairwise run at N=100), and the
+3,000 steps with the final checkpoint reported (plus 10,000-step runs of both arms at N=100), and the
 "best checkpoint on test" number reported separately to show what test-set early stopping would add.
 
 ## Rerun

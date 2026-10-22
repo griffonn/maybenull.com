@@ -1,6 +1,6 @@
 ---
 title: "Pairwise learning, against a baseline that learns"
-description: A new paper reports that training on "which face is older?" cuts small-data age error from 22.6 to 13.9 years. On the paper's kind of split, predicting one constant age scores 22.2. Plain MSE regression, same network, gets 12.0–13.7 and beats or ties pairwise at every N we tried.
+description: A new paper reports that training on "which face is older?" cuts small-data age error from 22.6 to 13.9 years. On the paper's kind of split, predicting one constant age scores 22.2. Plain MSE regression, same network, gets 12.0–13.7 at N=100 and beats or ties pairwise at every N I tried.
 date: 2026-10-22
 draft: false
 ---
@@ -67,7 +67,8 @@ figure used, so I also ran a natural (uniformly sampled) training set.
 
 **Arms.** All use the repo's `AgeRanker` architecture as its forward pass
 actually runs (four residual stages; a fifth is defined but never called),
-AdamW at 5e-4, batch 32, random horizontal flips, and the same number of steps.
+AdamW at 5e-4, batch 32, random horizontal flips, and the same number of steps (a pairwise step sees 32 pairs, so it touches
+twice as many images).
 None use early stopping; I report the last checkpoint.
 
 - `pair`: the paper's method, with the training images as references.
@@ -123,7 +124,7 @@ Plainly:
   age near 50, and the test set's median is 29. Predicting the training mean
   (about 49) for every face gives 22.2 on average. A baseline at 22.6 does
   no better than predicting one age for everyone.
-- **Our pairwise arm reproduces the paper.** 13.7 at 3k steps and 13.0 at
+- **My pairwise arm reproduces the paper.** 13.7 at 3k steps and 13.0 at
   10k steps, against the paper's 13.9 (a single run). The change of input resolution didn't
   break it.
 - **Standardized MSE matches or beats pairwise at every N.** At N=100 the gap is within
@@ -139,9 +140,9 @@ Plainly:
 - **With a natural training set**, the constant scores 16.0, MSE 11.1 ± 0.8 and
   pairwise 12.4 ± 1.5 (3 seeds). Same ordering.
 
-![Predicted vs. true age at N=100 for MSE and pairwise](/lab/pairwise-age-baseline/scatter-n100.png)
+![Predicted vs. true age at N=100 (10k steps, seed 0) for MSE and pairwise](/lab/pairwise-age-baseline/scatter-n100.png)
 
-The scatter shows the difference in kind. MSE shrinks toward the middle: it
+The scatter (10k-step runs, seed 0) shows the difference in kind. MSE shrinks toward the middle: it
 over-predicts infants and under-predicts the very old. Pairwise keeps the full
 range, but it's noisier in the 20–60 band where most faces are. It can also
 only answer with ages that exist in the reference set.
@@ -183,7 +184,7 @@ Takeaways:
   full scale). It buys spread, not accuracy.
 
 **Where this breaks.** This is 64×64 input, not 192×192, and has no 8×
-test-time augmentation for any arm. Our N=100 pairwise result matches the
+test-time augmentation for any arm. My N=100 pairwise result matches the
 paper's, but higher resolution could favor one arm. I didn't tune either arm
 beyond the repo's optimizer settings, and I used a constant learning rate where
 the paper's script uses ReduceLROnPlateau; tuning would likely help both. I can't
