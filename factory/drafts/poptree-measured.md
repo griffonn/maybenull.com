@@ -101,15 +101,17 @@ The opponents:
 For the main grid, n = 3^10 = 59,049 keys and m = 2,000,000 searches, with
 5 seeds. I measure only the second million, after everything has adapted (the
 theorem needs m = Ω(n log n)). I repeated the grid at n = 3^12 with 20 million
-searches (3 seeds). The hot-set workloads draw uniformly from 729 keys, placed
-at random, adjacent, or evenly spaced S apart. The whole run takes 10 minutes
+searches (3 seeds). The hot-set workloads draw uniformly from n/81 keys (729 at
+n = 3^10, 6,561 at n = 3^12), placed at random, adjacent, or evenly spaced S
+apart. The whole run takes 10 minutes
 on 4 CPU cores. The unit is nodes touched, not nanoseconds, because PopTree is
 a skip list here, not a pointer-based tree.
 
 ## Results
 
 Nodes touched per search, n = 59,049, mean of 5 seeds; the bracket is the
-min–max where seeds differ by more than 0.1. Restructure ops are PopTree's
+min–max where seeds differ by more than 0.1 (node-count columns only;
+restructure ops are means). Restructure ops are PopTree's
 skip-list promotions plus demotions per search, and they're not counted in its
 column. Splay's rotations (one fewer than the nodes on its path, so about 20
 per search on uniform access) aren't counted in its column either.
@@ -117,8 +119,8 @@ per search on uniform access) aren't counted in its column either.
 | workload | PopTree | splay | static balanced | offline entropy BST | PopTree restructure ops |
 |---|---|---|---|---|---|
 | uniform | 16.28 | 20.94 | 14.89 | 14.85 | 21.7 |
-| Zipf, shuffled keys | 11.56 [11.50–11.64] | 13.48 | 14.87 [14.51–15.09] | 9.67 [9.37–9.83] | 14.5 |
-| Zipf, adjacent keys | 15.63 [15.47–15.80] | 14.06 | 14.87 [14.75–14.96] | 10.11 | 21.2 |
+| Zipf, keys shuffled | 11.56 [11.50–11.64] | 13.48 | 14.87 [14.51–15.09] | 9.67 [9.37–9.83] | 14.5 |
+| Zipf, keys adjacent | 15.63 [15.47–15.80] | 14.06 | 14.87 [14.75–14.96] | 10.11 | 21.2 |
 | 729 hot keys, random spots | 10.54 | 11.76 | 14.92 | 8.61 | 12.8 |
 | 729 hot keys, 81 apart | 9.27 | 11.76 | 14.91 | 8.61 | 11.4 |
 | 729 hot keys, adjacent | 14.71 [13.94–15.77] | 11.76 | 14.89 | 8.61 | 18.1 |
@@ -216,7 +218,8 @@ Plainly:
   loses to PopTree once the keys are 27 or more apart, and wins when they're
   closer. It pays for its adaptivity on uniform access: 20.9 nodes against the
   static tree's 14.9.
-- **The paper's predictions hold, and the constants are visible.** With Zipf
+- **My runs are consistent with the paper's predictions, and the constants
+  are visible.** With Zipf
   popularity over shuffled keys, PopTree lands within a constant of splay as
   predicted; in my runs it's ahead, 11.6 against 13.5. Random walks get
   nothing from it (15.6 against the static 14.9), while splay gets 4.5.
@@ -232,11 +235,12 @@ Plainly:
   descending one expensive (26.3).
 - **Larger n doesn't change the picture.** At n = 531,441, the ratio of
   PopTree to static is 1.10 on uniform, 0.75 on shuffled Zipf, 0.71 on the
-  81-apart hot set and 1.04 on the adjacent one.
+  81-apart hot set (now 6,561 keys) and 1.04 on the adjacent one.
 
 ## What it means
 
-The reason is visible in the balance rule. In any BST, two keys that are
+The reason is visible in the balance rule. As the paper notes, two adjacent
+keys can't both be shallow. Here's why. In any BST, two keys that are
 adjacent in sorted order are ancestor and descendant. Say x is the ancestor.
 Then x+1 is the leftmost node of x's right subtree. Under BB[α], that subtree
 holds at least an α fraction of x's weight. Each step down its left spine
@@ -254,14 +258,15 @@ Takeaways:
 
 - If you want a self-adjusting tree that stays balanced, its benefit depends on
   where your hot keys are, not just how many there are. Random IDs and hashed
-  keys are its best case. Keys whose hot set is a contiguous range, such as
+  keys are a good case. Keys whose hot set is a contiguous range, such as
   recent timestamps or sequential IDs, should be close to its worst, though I
   only tested synthetic versions of that.
 - For scans, walks and contiguous hot ranges, a balanced tree can't adapt, by
   theorem. You need a splay tree, a finger search, or a cache in front of the
   tree.
-- On access patterns it can't exploit, PopTree touches more nodes than doing
-  nothing and does about 20 restructuring operations per search. A plain
+- On access patterns it can't exploit, PopTree touches about as many nodes as
+  doing nothing or more (9% more on uniform, 77% more on a descending scan) and
+  does about 20 restructuring operations per search. A plain
   balanced tree is the safer default unless you know your hot keys are spread
   out.
 
@@ -279,7 +284,9 @@ Takeaways:
 - **One free choice I made.** When gap repair can promote one of several
   children, the paper allows any. I promote the most recently searched one.
   Promoting the leftmost instead changes PopTree's cost by at most 0.06 nodes on
-  the six workloads I checked (`ablate_fill.sh`).
+  the six workloads I checked (`ablate_fill.sh`). That bound is for the paper's
+  chain layout; under the median layout the ascending scan drops from 21.4 to
+  16.7.
 - **Static key set, searches only.** The paper's model has no inserts or
   deletes, and n is a power of three. So is mine.
 - **Synthetic workloads.** The hot-set rows are deliberately clean. Real traces
