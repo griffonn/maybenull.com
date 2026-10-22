@@ -23,6 +23,9 @@ for rule in ["exact", "pse", "ladder"]:
     e = np.array([np.std(S["sim_local"][f"{rule}/{m}"]["val_gain"], ddof=1) * 100 for m in ms])
     ax.plot(ms, v, "-o", color=C[rule], lw=2, ms=5, label=LBL[rule])
     ax.fill_between(ms, v - e, v + e, color=C[rule], alpha=0.15, lw=0)
+ms = sorted({int(k.split("/")[1]) for k in S["sim_local"] if k.startswith("pse1/")})
+v1 = [np.mean(S["sim_local"][f"pse1/{m}"]["val_gain"]) * 100 for m in ms]
+ax.plot(ms, v1, "--", color=C["pse"], lw=1.2, label="1 paired SE, sample std")
 ms = sorted({int(k.split("/")[1]) for k in S["sim_local"] if k.startswith("exact/")})
 t = [np.mean(S["sim_local"][f"exact/{m}"]["test_gain"]) * 100 for m in ms]
 ax.plot(ms, t, ":", color=INK, lw=1.5, label="fresh-test gain (any rule)")

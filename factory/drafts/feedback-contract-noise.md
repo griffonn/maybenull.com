@@ -1,6 +1,6 @@
 ---
 title: "One standard error lets one noise submission in six through"
-description: A new paper protects an ML agent's validation set by releasing a score only when a submission beats the best by one paired standard error. That test passes about 1 in 6 pure-noise submissions, so against small edits it slows fake gains (4.3 vs 5.8 points after 1,000 tries) rather than stopping them. Against the classic attack it holds, and it keeps most real gains.
+description: "A paired-standard-error release rule for ML agents stops random-guess attacks, but on pure noise it still lets a searcher making small correlated edits keep about two-thirds of exact feedback's fake gain (3.9 vs 5.8 points after 1,000 tries)."
 date: 2026-10-22
 draft: false
 ---
@@ -8,17 +8,18 @@ draft: false
 An ML agent that reads its validation score after every attempt will, given
 enough attempts, improve the validation score and nothing else. A new paper
 fixes this by showing the agent a new score only when a submission beats the
-best one by one standard error. I fed that rule 1,000 submissions of pure noise.
-It reported 4.3 points of accuracy that don't exist. Exact feedback reported 5.8.
+best one by one standard error. I fed that rule 1,000 submissions of pure noise,
+each changing 50 predictions of the current best. It reported 3.9 points of
+accuracy that don't exist. Exact feedback reported 5.8.
 
 ## Context
 
 [An Explicit Feedback Contract for Iterative ML-Agent Harnesses](https://arxiv.org/abs/2610.28798)
 (Yao et al., Walmart Global Tech, October 2026) looks at agents that develop
-models in a loop: edit code, train, read a validation score, decide what to try
-next. Each score is an honest held-out estimate. Keeping whichever edit scored
-best is not. After enough rounds the champion is partly a model that happens
-to fit *this* validation split. That is adaptive overfitting.
+models in a loop: change something, retrain, look at the validation number,
+repeat. Any single validation number is fine. The trouble is the loop: keep
+the best of many tries and the winner is partly chosen for luck on these
+particular validation rows. That is adaptive overfitting.
 
 The paper's fix is a harness "contract": the agent can't read validation labels
 or predictions, the test set is touched once at the end, and the score is
@@ -34,9 +35,10 @@ The rule is the "parameter-free Ladder" from Blum and Hardt's
 all-zeros starting loss vector and the rounding to 1/*n*. Blum and Hardt call
 the test "primarily heuristic" and put it at roughly a 0.15 significance level.
 
-On a control task with permuted labels, the paper reports a spurious gain of
-0.0157 under exact feedback and 0.0033 under the contract. Exact feedback ran
-all 30 allowed submissions; the contract stopped after about 10.
+On a control task with permuted labels, the paper reports a final validation
+gain of 0.0157 under exact feedback, which the test set doesn't support, and
+0.0033 under the contract, which it does. Exact feedback ran all 30 allowed
+submissions; the contract stopped after about 10.
 
 ## The question
 
@@ -69,6 +71,12 @@ size of the paper's Criteo validation split. Three release rules:
 | exact | 0 (any improvement) |
 | paired SE (the paper) | std(paired loss differences) / √*n* |
 | fixed margin | 0.005 (one of the margins in the paper's Table 4) |
+
+"Paired SE" is Algorithm 1 as printed, with no floor. The paper's text adds one,
+η<sub>min</sub> = *c*·*n*<sup>−1/3</sup>·log<sup>1/3</sup>(*kn*), with *c*
+unstated. Any floor above about 0.005 turns the rule into the fixed-margin row
+here. Algorithm 1 also writes "std" without saying which: I use the population
+standard deviation (numpy's default) and check the sample version separately.
 
 **Pure noise.** Labels are coin flips, so every model's true accuracy is 50% and
 any reported gain is selection. The searcher flips *m* random predictions of the
@@ -112,6 +120,7 @@ minus fresh-test gain, the part of the reported progress that isn't real.
 |---:|---:|---:|---:|
 | 2 | 1.9 | 1.9 | 0.0 |
 | 10 | 4.2 | 2.8 | 0.0 |
+| 50 | 5.8 | 3.9 | 0.0 |
 | 100 | 5.8 | 4.3 | 0.0 |
 | 1,000 | 3.4 | 2.7 | 0.3 |
 | 10,000 | 1.2 | 0.9 | 0.8 |
@@ -123,7 +132,7 @@ cell.*
 
 The paired-SE rule stops the boosting attack, as Blum and Hardt showed: 0.7
 points, against 4.5 for exact feedback. Against small edits it only slows things
-down. At *m* = 100 it lets through 74% of exact feedback's fake gain. Real
+down. At *m* = 50 it lets through two-thirds of exact feedback's fake gain. Real
 accuracy on fresh labels is 50% throughout.
 
 The first-step pass rate matches the z = 1 arithmetic. With a champion that
@@ -136,7 +145,10 @@ standard deviation (`np.std`'s default), a one-row improvement always clears the
 bar: the threshold is √(1 − 1/*n*)/*n*, just under the 1/*n* the score moves by.
 At *m* = 1 the rule then behaves exactly like exact feedback. Blum and Hardt
 specify the sample standard deviation, which blocks *m* = 1. It doesn't help at
-*m* = 2.
+*m* = 2. The same edge appears whenever *m* is a perfect square, where an
+improvement of exactly √*m* rows sits on the bar: at *m* = 100 the sample
+version gives 3.8 points instead of 4.3, which is the bump in the blue curve.
+At the other sizes in the table the two versions agree.
 
 The curves rise and then fall because the gain eats itself. A champion that is
 lucky on the validation set loses some of that luck with every flipped row: of
@@ -152,8 +164,9 @@ Realistic edits are not small in this sense. On the coin-flip labels, a one-step
 tweak changes a third of the validation predictions (median 8,300 of 25,000). A
 boosted tree fit to noise reshuffles its noise whenever you touch it. On
 learnable labels a tweak changes about 600 predictions, and adding a member to
-a growing ensemble changes 36–107 (median, depending on how big the ensemble has
-grown).
+a growing ensemble changes a median of 36–107 (about 300 for the first few
+additions, fewer as the ensemble grows). On coin-flip labels ensemble edits
+change 1,300–4,000.
 
 | searcher, labels | rule | accepted (of 199) | val gain | test gain | inflation | inflation, patience 5 |
 |---|---|---:|---:|---:|---:|---:|
@@ -172,45 +185,48 @@ the same runs with a stop after 5 consecutive submissions without an update
 
 Three readings. First, a scripted searcher on 25,000 validation rows doesn't
 overfit much: under a point of inflation after 200 submissions, even with exact
-feedback. The paired-SE rule roughly halves it on coin-flip labels, but the
+feedback. The paired-SE rule cuts it by 40–55% on coin-flip labels, but the
 seed-to-seed spread is as large as the difference.
 
 Second, the patience stop does as much as the threshold. Exact feedback plus
 "stop after 5 rounds without improvement" lands within noise of the paired-SE
 rule without one. With the same patience of 5, exact feedback stopped after
 8–20 submissions and the paired-SE rule after 6–10: a threshold that accepts
-less often makes the patience counter fire sooner. The paper's exact-feedback
-agents never stopped before the cap, so its LLM agents kept finding
-"improvements" more often than my scripts did.
+less often makes the patience counter fire sooner. In the paper, exact
+feedback ran to the 30-submission cap on Criteo and the control, with a patience
+it doesn't state.
 
 Third, the cost. On learnable labels, ensembling is worth +0.38 points on fresh
 test data. The paired-SE rule keeps +0.32 of it with a quarter of the updates.
 The fixed 0.005 margin keeps nothing, because no single real improvement here
-is that big. The margin that Blum and Hardt's theory needs is worse:
+is that big. The margin in Blum and Hardt's theorem is worse:
 *n*<sup>−1/3</sup>·log<sup>1/3</sup>(*kn*) is 0.085 at *n* = 25,000 and
-*k* = 200, more than 20 times the whole real gain. The paper puts a floor of
-that form, times a constant *c*, under its rule, and doesn't give *c*.
+*k* = 200 with the constant set to 1, more than 20 times the whole real gain.
+That is the floor the paper adds, with its constant unstated.
 
 ## What it means
 
 The paired-SE rule is a sensible default with a narrow guarantee. Its
 protection depends on what your submissions look like. It holds against
 independent guesses, because each accepted guess raises the bar for the next
-one. It barely slows a searcher that makes many correlated small edits, because
-every edit is a fresh 16% chance. Agents that tune, blend and patch are closer
+one. It only slows a searcher that makes many correlated small edits: each
+edit gets a fresh chance at a one-standard-error fluke (16% against an
+unselected champion, fewer once the champion is itself a lucky pick), and at
+50–100 rows per edit it still lets through two-thirds to three-quarters of
+exact feedback's fake gain. Agents that tune, blend and patch are closer
 to the second kind. On the evidence here, the thing that actually limits damage
 is the number of submissions: a patience stop, a budget, or both.
 
 What I'd take from it if I were writing an agent harness:
 
 - Log *m*, the number of validation predictions each submission changes. It
-  tells you which regime you're in, and the agent doesn't need labels to compute
-  it.
+  tells you which regime you're in. The harness can log it without releasing
+  anything, and it needs no labels.
 - Use the paired-SE rule over a fixed margin. A fixed margin is either too big,
   blocking real gains, or too small to matter, and you can't tell which in
   advance.
-- Keep the patience stop and treat it as the main defense. Count accepted
-  updates, not raw improvements.
+- Keep the patience stop and treat it as the main defense. As the paper's
+  contract already says, count accepted updates, not raw improvements.
 - Score the final model once on a test set the loop never saw. That is the only
   number in this post that never lied.
 
@@ -218,8 +234,9 @@ What I'd take from it if I were writing an agent harness:
 not just hyperparameters, and its edit sizes may be different. Everything here
 is 0-1 loss. The paper scores Criteo with AUC, which is not an average of
 per-example losses, and it doesn't say what vector the standard deviation is
-taken over. Validation size is fixed at 25,000. Smaller sets make every effect
-here larger. Five seeds separate the pure-noise curves cleanly; for the
+taken over. Validation size is fixed at 25,000. Smaller sets should make every
+effect here larger (untested here; the paper's Table 3 reports larger gaps at
+smaller validation sizes). Five seeds separate the pure-noise curves cleanly; for the
 hill-climber they don't separate paired SE from exact feedback on inflation. I
 didn't test Thresholdout or other differential-privacy mechanisms.
 

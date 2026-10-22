@@ -91,7 +91,7 @@ def main():
             m_diff, s, ok = n, np.nan, True
         else:
             m_diff = int((pv != champ_pred).sum())
-            s = float(np.std(Lc - L))           # population std, as written in Algorithm 1
+            s = float(np.std(Lc - L))           # population std; Algorithm 1 just writes "std"
             if rule == "exact":   ok = r < R
             elif rule == "pse":   ok = r < R - s / np.sqrt(n)
             elif rule == "ladder":ok = r < R - ETA

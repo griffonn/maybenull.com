@@ -25,8 +25,8 @@ feedback and a fixed-margin Ladder (η = 0.005). CPU only, numpy + scikit-learn.
 ## Rules
 
 - `exact`: champion = any submission with lower validation error.
-- `pse`: accept if error < champion error − std(paired loss difference)/√n, `np.std` with ddof = 0,
-  as Algorithm 1 writes it (`pse1` in `sim.py` uses ddof = 1). The released score is rounded to 1/n,
+- `pse`: accept if error < champion error − std(paired loss difference)/√n, `np.std` with ddof = 0 (Algorithm 1 writes only "std"; this is our reading;
+  `pse1` in `sim.py` uses ddof = 1, as Blum & Hardt specify). The released score is rounded to 1/n,
   which for 0-1 loss changes nothing.
 - `ladder`: accept if error < champion error − 0.005.
 
