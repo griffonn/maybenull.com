@@ -110,7 +110,86 @@ N = 10M unless noted.
 
 ## Results
 
-![ns per element vs distinct values, uniform keys, N=10M](/lab/cafs-is-counting/ns-per-element.png)
+<div id="cafs-ns" style="width:100%;min-height:460px" role="img" aria-label="Nanoseconds per element versus distinct values K, uniform keys, N = 10M, for CAFS, a hash-map count, pdqsort and ska_sort, in two panels: uint64 and int32 keys."></div>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+(function () {
+  var NAME = {cafs: 'CAFS', count_ankerl: 'hash-map count (ankerl)', pdqsort: 'pdqsort', ska_sort: 'ska_sort (radix)'};
+  var COL = {cafs: '#2a78d6', count_ankerl: '#eb6834', pdqsort: '#1baf7a', ska_sort: '#eda100',
+             uniform: '#6250d6', zipf: '#e87ba4', runs: '#1baf7a'};
+  var DNAME = {uniform: 'uniform', zipf: 'zipf', runs: 'clustered runs'};
+  function theme() {
+    var cs = getComputedStyle(document.documentElement);
+    return {fg: cs.getPropertyValue('--fg').trim(), muted: cs.getPropertyValue('--muted').trim(),
+            grid: cs.getPropertyValue('--line').trim()};
+  }
+  function base(t, el, nPanels, ytitle, ytype) {
+    var narrow = el.clientWidth < 560;
+    var lay = {height: narrow ? 760 : 460, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: {family: 'Inter, system-ui, sans-serif', color: t.fg, size: 12},
+      margin: {l: 56, r: 10, t: 28, b: narrow ? 150 : 110}, hovermode: 'closest', annotations: [],
+      grid: narrow ? {rows: nPanels, columns: 1, pattern: 'independent', ygap: 0.28} : {rows: 1, columns: nPanels, pattern: 'independent', xgap: 0.08},
+      legend: {orientation: 'h', x: 0, y: narrow ? -0.12 : -0.22, yanchor: 'top', font: {color: t.fg}}};
+    for (var i = 1; i <= nPanels; i++) {
+      var s = i === 1 ? '' : String(i);
+      var ax = {gridcolor: t.grid, linecolor: t.muted, zerolinecolor: t.muted, tickfont: {color: t.muted}};
+      lay['xaxis' + s] = Object.assign({type: 'log', title: {text: 'distinct values K', font: {color: t.muted}, standoff: 6},
+        dtick: 1}, ax);
+      lay['yaxis' + s] = Object.assign({type: ytype || 'linear', matches: i === 1 ? undefined : 'y', title: (i === 1 || narrow) ? {text: ytitle, font: {color: t.muted}} : undefined}, ax);
+    }
+    return lay;
+  }
+  function panelTitle(lay, i, text, t) {
+    var s = i === 1 ? '' : String(i);
+    lay.annotations.push({text: text, xref: 'x' + s + ' domain', yref: 'y' + s + ' domain', x: 0, y: 1.02,
+      xanchor: 'left', yanchor: 'bottom', showarrow: false, font: {color: t.fg, size: 12}});
+  }
+  function drawNs(d) {
+    var el = document.getElementById('cafs-ns'), t = theme(), traces = [];
+    var lay = base(t, el, 2, 'ns per element (median of 5)', 'log');
+    d.panels.forEach(function (p, i) {
+      var s = i === 0 ? '' : String(i + 1);
+      panelTitle(lay, i + 1, p.title, t);
+      lay['yaxis' + s].tickvals = [2, 5, 10, 20, 50]; lay['yaxis' + s].ticktext = ['2', '5', '10', '20', '50'];
+      Object.keys(NAME).forEach(function (a) {
+        traces.push({x: p.K, y: p.series[a].median, xaxis: 'x' + s, yaxis: 'y' + s, name: NAME[a], legendgroup: a,
+          showlegend: i === 0, mode: 'lines+markers', line: {color: COL[a], width: 2.5}, marker: {size: 6},
+          customdata: p.series[a].min.map(function (v, j) { return [v, p.series[a].max[j]]; }),
+          hovertemplate: 'K = %{x}<br>%{y:.2f} ns/element (median)<br>range %{customdata[0]:.2f}–%{customdata[1]:.2f}<extra>' + NAME[a] + '</extra>'});
+      });
+    });
+    Plotly.react(el, traces, lay, {responsive: true, displayModeBar: false});
+  }
+  function drawRatio(d) {
+    var el = document.getElementById('cafs-ratio'), t = theme(), traces = [];
+    var lay = base(t, el, 2, 'CAFS time ÷ hash-map-count time', 'log');
+    d.panels.forEach(function (p, i) {
+      var s = i === 0 ? '' : String(i + 1);
+      panelTitle(lay, i + 1, p.title, t);
+      lay['yaxis' + s].tickvals = [0.25, 0.5, 1, 2, 4]; lay['yaxis' + s].ticktext = ['0.25×', '0.5×', '1×', '2×', '4×'];
+      lay['shapes'] = (lay['shapes'] || []).concat([{type: 'line', xref: 'x' + s + ' domain', x0: 0, x1: 1, yref: 'y' + s, y0: 1, y1: 1,
+        line: {color: t.muted, width: 1, dash: 'dash'}}]);
+      Object.keys(p.series).forEach(function (dist) {
+        traces.push({x: p.series[dist].K, y: p.series[dist].ratio, xaxis: 'x' + s, yaxis: 'y' + s, name: DNAME[dist],
+          legendgroup: dist, showlegend: i === 0, mode: 'lines+markers', line: {color: COL[dist], width: 2.5}, marker: {size: 6},
+          hovertemplate: 'K = %{x}<br>CAFS takes %{y:.2f}× the hash-map count time<extra>' + DNAME[dist] + '</extra>'});
+      });
+    });
+    Plotly.react(el, traces, lay, {responsive: true, displayModeBar: false});
+  }
+  function load(url) { return fetch(url).then(function (r) { return r.json(); }); }
+  function go() {
+    Promise.all([load('/lab/cafs-is-counting/ns-per-element.json'), load('/lab/cafs-is-counting/cafs-vs-count.json')]).then(function (v) {
+      function all() { drawNs(v[0]); drawRatio(v[1]); }
+      all();
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', all);
+      var el = document.getElementById('cafs-ns'), narrow = el.clientWidth < 560;
+      window.addEventListener('resize', function () { if ((el.clientWidth < 560) !== narrow) { narrow = !narrow; all(); } });
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+})();
+</script>
 
 **Uniform keys.**
 
@@ -136,9 +215,12 @@ N = 10M unless noted.
 *ns per element, N = 10M. The last three columns come from one ablation run, so
 they compare directly. pdqsort comes from the main grid. Its `int32` K = 16,384
 cell is bimodal (two of five reps at ~15 ns), which is also the spike in the
-right panel above.*
+`int32` panel above.*
 
-![CAFS time divided by hash-map-count time, by distribution](/lab/cafs-is-counting/cafs-vs-count.png)
+<div id="cafs-ratio" style="width:100%;min-height:460px" role="img" aria-label="CAFS time divided by hash-map-count time versus distinct values K, for uniform, zipf and clustered-run keys, in two panels: uint64 and int32 keys. Below 1 means CAFS is faster."></div>
+
+*CAFS time ÷ hash-map-count time, median of 5. Below 1× means CAFS is faster.
+Hover for values.*
 
 What the two charts and the ablation say:
 

@@ -18,6 +18,7 @@ AVX2 cache-line bucket?
 | `diag.cpp` | Re-runs CAFS's own Chao1 estimator and table sizing; counts elements that spill out of the bucket table. |
 | `analyze.py` | Prints median tables from `results/grid*.csv`. |
 | `plot.py` | Writes `figs/*.png`. Needs matplotlib. |
+| `chart_data.py` | Writes `figs/*.json`, the data behind the interactive charts in the post. |
 | `third_party/` | Vendored headers: CAFS (`cafs.hpp`, `cafs2.hpp`), pdqsort, ska_sort, ankerl unordered_dense. Commits in `SOURCES.txt`. |
 | `results/` | Raw CSVs (one row per run), `diag.csv`, `hardware.txt`. |
 
