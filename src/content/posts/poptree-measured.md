@@ -32,9 +32,10 @@ same question for balanced trees. If a tree must stay BB[α] at all times, the
 best it can do, even knowing the future, is a cost they call OPT(X), up to a
 constant factor. They also build an online tree, the **PopTree**, that achieves
 it. The formula has a twist. In the paper's words, "arbitrary BSTs reward
-locality in key-space while weight-balanced BSTs punish it". Under OPT,
-searching x costs little only when no key near x in sorted order has come up
-since x was last searched.
+locality in key-space while weight-balanced BSTs punish it". Read off
+equation (1), a repeat search of x is charged about log(n/d), where d is the
+distance from x to the nearest other key searched since x's previous search,
+plus a term for being near either end of the key range.
 
 ## The question
 
@@ -236,18 +237,20 @@ Plainly:
 - **Larger n doesn't change the picture.** At n = 531,441, the ratio of
   PopTree to static is 1.10 on uniform, 0.75 on shuffled Zipf, 0.71 on the
   81-apart hot set (now 6,561 keys) and 1.04 on the adjacent one. The splay
-  crossover moves: with 6,561 hot keys, PopTree already wins at spacing 9
-  (16.24 against 16.34).
+  crossover moves: with 6,561 hot keys, PopTree roughly ties splay at spacing 9
+  (16.24 against 16.34 on the mean, ahead on 2 of 3 seeds) and wins clearly
+  from 27 up. Both n and the hot-set size grew 9×, so this mixes two changes.
 
 ## What it means
 
 The reason is visible in the balance rule. As the paper notes, two adjacent
 keys can't both be shallow. Here's why. In any BST, two keys that are
-adjacent in sorted order are ancestor and descendant. Say x is the ancestor.
+adjacent in sorted order are ancestor and descendant. Say x is the ancestor and x+1 the descendant (the other case is symmetric).
 Then x+1 is the leftmost node of x's right subtree. Under BB[α], that subtree
 holds at least an α fraction of x's weight. Each step down its left spine
-keeps at most a 1−α fraction of the weight, so reaching the bottom of a
-subtree of size s takes at least log(s)/log(1/(1−α)) steps. If x sits near the
+keeps at least an α fraction of the weight, so the weight shrinks by at most a
+factor 1/α per step, and reaching the bottom of a subtree of weight s takes at
+least log(s)/log(1/α) steps. If x sits near the
 root, its subtree is large, so x+1 sits about log n deep. The paper's Lemma 5
 generalizes this: of two keys r apart, one must be Ω(log(n/r)) deep. A balanced
 tree can keep 729 keys spread over the whole space all near the top. It can't
@@ -284,7 +287,7 @@ Takeaways:
   ascending, 16.2 descending at n = 3^10). The spacing curve, and at n = 3^10
   the splay crossover between spacings 9 and 27, hold in both. All columns are in `results/summary.json`, along with the
   layout-free skip-list level.
-- **One free choice I made.** When gap repair can promote one of several
+- **The main free choice I made.** When gap repair can promote one of several
   children, the paper allows any. I promote the most recently searched one.
   Promoting the leftmost instead changes PopTree's cost by at most 0.06 nodes on
   the six workloads I checked (`ablate_fill.sh`). That bound is for the paper's
@@ -297,7 +300,7 @@ Takeaways:
 - **OPT(X) has unknown constants.** I evaluated the formula as written. Across
   the 12 workloads, its rank correlation with PopTree's skip-list level (the
   quantity the paper bounds) is 0.92 at n = 3^10 and 0.87 at n = 3^12. With
-  BST nodes touched it's lower (0.74 and 0.67), which is the layout constant
+  BST nodes touched it's lower (0.73 and 0.65), which is the layout constant
   showing. It can't tell you the absolute cost.
 
 ## Reproduce it

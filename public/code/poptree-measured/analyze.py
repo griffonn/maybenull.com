@@ -46,7 +46,8 @@ def main():
         if name in summary:
             g = summary[name]; ws = sorted(g)
             b = [g[w]["opt"]["mean"] for w in ws]
-            rank = lambda v: [sorted(v).index(x) for x in v]
+            # average ranks for ties (the two scans tie)
+            rank = lambda v: [sum(1 for y in v if y < x) + (sum(1 for y in v if y == x) - 1) / 2 for x in v]
             k = len(ws)
             for metric in ["poptree", "poptree_level"]:
                 a = [g[w][metric]["mean"] for w in ws]

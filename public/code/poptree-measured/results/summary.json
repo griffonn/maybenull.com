@@ -1571,8 +1571,8 @@
    }
   }
  },
- "grid_L10_opt_spearman_poptree": 0.7447552447552448,
+ "grid_L10_opt_spearman_poptree": 0.729020979020979,
  "grid_L10_opt_spearman_poptree_level": 0.9230769230769231,
- "grid_L12_opt_spearman_poptree": 0.6748251748251748,
+ "grid_L12_opt_spearman_poptree": 0.6520979020979021,
  "grid_L12_opt_spearman_poptree_level": 0.8671328671328671
 }
