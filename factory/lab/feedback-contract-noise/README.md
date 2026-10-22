@@ -19,7 +19,7 @@ feedback and a fixed-margin Ladder (η = 0.005). CPU only, numpy + scikit-learn.
 | `agent.py` | Scripted hill-climber with a HistGradientBoostingClassifier, 20k train / 25k validation / 50k test rows of `make_classification` (30 features, 10 informative, 30% label noise); task `null` replaces the labels with coin flips. Searcher `tweak` changes one hyperparameter of the champion per submission; searcher `ensemble` adds one new member (one tweak, fresh seed) to the champion's probability-averaged ensemble. 200 submissions, no stopping; patience is applied afterwards in `analyze.py`. |
 | `run_agent.sh` | `./run_agent.sh tweak` (~10 min on 4 cores) and `./run_agent.sh ensemble` (~25 min). 2 tasks × 3 rules × 5 seeds each. |
 | `analyze.py` | Tables to stdout, everything to `results/summary.json`. Gains are measured from the first submitted model; "inflation" = validation gain − fresh-test gain. Patience p = stop after p consecutive submissions with no update. |
-| `plot.py` | `figs/noise-sweep.png`. |
+| `plot.py` | `figs/noise-sweep.png` (static) and `figs/noise-sweep.json` (data for the interactive chart in the post). |
 | `results/` | One JSON per agent run (per-submission log: knob, predictions changed m, z, accepted, champion val/test error), simulation CSVs, `summary.json`, `hardware.txt`. |
 
 ## Rules

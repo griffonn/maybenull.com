@@ -37,3 +37,13 @@ ax.grid(True, color=GRID, lw=0.8); ax.legend(frameon=False, fontsize=9.5, loc="u
 fig.tight_layout(); fig.savefig("figs/noise-sweep.png", dpi=150, transparent=True)
 
 print("ok")
+
+# Chart data for the post's interactive Plotly chart: figs/noise-sweep.json
+out = {"m": sorted({int(k.split("/")[1]) for k in S["sim_local"] if k.startswith("exact/")}), "series": {}}
+for rule in ["exact", "pse", "pse1", "ladder"]:
+    out["series"][rule] = {
+        "mean": [round(float(np.mean(S["sim_local"][f"{rule}/{m}"]["val_gain"])) * 100, 3) for m in out["m"]],
+        "sd": [round(float(np.std(S["sim_local"][f"{rule}/{m}"]["val_gain"], ddof=1)) * 100, 3) for m in out["m"]]}
+out["series"]["test_exact"] = {"mean": [round(float(np.mean(S["sim_local"][f"exact/{m}"]["test_gain"])) * 100, 3) for m in out["m"]]}
+json.dump(out, open("figs/noise-sweep.json", "w"), indent=1)
+print("json ok")

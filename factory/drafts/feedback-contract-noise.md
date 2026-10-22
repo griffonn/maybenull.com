@@ -25,7 +25,7 @@ The paper's fix is a harness "contract": the agent can't read validation labels
 or predictions, the test set is touched once at the end, and the score is
 released only when a submission beats the champion clearly enough. "Clearly
 enough" is the interesting part. The harness computes each example's loss for
-the candidate and for the champion, takes the standard deviation *s* of the
+the candidate and for the champion (the current best submission), takes the standard deviation *s* of the
 per-example differences, and accepts only if the candidate's mean loss is lower
 by more than *s*/√*n*. That is one standard error of a paired comparison.
 Otherwise the old score is repeated.
@@ -75,8 +75,9 @@ size of the paper's Criteo validation split. Three release rules:
 "Paired SE" is Algorithm 1 as printed, with no floor. The paper's text adds one,
 η<sub>min</sub> = *c*·*n*<sup>−1/3</sup>·log<sup>1/3</sup>(*kn*), with *c*
 unstated. Any floor above about 0.005 turns the rule into a fixed margin at
-least as strict as the 0.005 row here. Algorithm 1 also writes "std" without saying which: I use the population
-standard deviation (numpy's default) and check the sample version separately.
+least as strict as the 0.005 row here. Algorithm 1 also writes "std" without
+saying which: I use the population standard deviation (numpy's default) and
+check the sample version separately.
 
 **Pure noise.** Labels are coin flips, so every model's true accuracy is 50% and
 any reported gain is selection. The searcher flips *m* random predictions of the
@@ -114,24 +115,71 @@ minus fresh-test gain, the part of the reported progress that isn't real.
 
 ### Pure noise
 
-![Reported accuracy gain after 1,000 pure-noise submissions vs. predictions changed per submission, for three release rules](/lab/feedback-contract-noise/noise-sweep.png)
+<div id="noise-sweep" style="width:100%;height:440px" role="img" aria-label="Reported accuracy gain after 1,000 pure-noise submissions vs. predictions changed per submission, for three release rules. Exact feedback peaks at 5.8 points around 50 to 100 changed predictions; the paired-SE rule peaks at 4.3; the fixed margin stays near zero below 1,000; fresh-test gain stays near zero."></div>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+(function () {
+  var el = document.getElementById('noise-sweep');
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  var C = {exact: '#eb6834', pse: '#3987e5', ladder: '#1baf7a'};
+  function band(d, k, color) {
+    var up = d.series[k].mean.map(function (v, i) { return v + d.series[k].sd[i]; });
+    var lo = d.series[k].mean.map(function (v, i) { return v - d.series[k].sd[i]; });
+    return {x: d.m.concat(d.m.slice().reverse()), y: up.concat(lo.reverse()), fill: 'toself',
+      fillcolor: color + '26', line: {width: 0}, hoverinfo: 'skip', showlegend: false};
+  }
+  function line(d, k, name, color, dash) {
+    return {x: d.m, y: d.series[k].mean, name: name, mode: dash ? 'lines' : 'lines+markers',
+      line: {color: color, width: dash ? 1.5 : 2.5, dash: dash || 'solid'}, marker: {size: 7},
+      hovertemplate: 'm = %{x}<br>%{y:.2f} points<extra>' + name + '</extra>'};
+  }
+  function draw(d) {
+    var cs = getComputedStyle(document.documentElement);
+    var fg = cs.getPropertyValue('--fg').trim(), muted = cs.getPropertyValue('--muted').trim(),
+        grid = cs.getPropertyValue('--line').trim();
+    var traces = [band(d, 'exact', C.exact), band(d, 'pse', C.pse), band(d, 'ladder', C.ladder),
+      line(d, 'exact', 'exact score', C.exact), line(d, 'pse', '1 paired SE (paper)', C.pse),
+      line(d, 'pse1', '1 paired SE, sample std', C.pse, 'dot'), line(d, 'ladder', 'fixed margin 0.005', C.ladder),
+      {x: d.m, y: d.series.test_exact.mean, name: 'fresh-test gain (exact)', mode: 'lines',
+       line: {color: muted, width: 1.5, dash: 'dash'}, hovertemplate: 'm = %{x}<br>%{y:.2f} points<extra>fresh test</extra>'}];
+    var axis = {gridcolor: grid, zerolinecolor: muted, linecolor: muted, tickfont: {color: muted}};
+    Plotly.react(el, traces, {
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: {family: 'Inter, system-ui, sans-serif', color: fg, size: 13},
+      margin: {l: 52, r: 12, t: 12, b: 100},
+      xaxis: Object.assign({type: 'log', tickvals: [1, 10, 100, 1000, 10000], ticktext: ['1', '10', '100', '1k', '10k'], title: {text: 'predictions changed per submission (m)', font: {color: muted}, standoff: 8}}, axis),
+      yaxis: Object.assign({title: {text: 'fake gain, points', font: {color: muted}}, rangemode: 'tozero'}, axis),
+      legend: {orientation: 'h', y: -0.2, yanchor: 'top', x: 0, font: {color: fg, size: 12}},
+      hovermode: 'closest'
+    }, {responsive: true, displayModeBar: false});
+  }
+  fetch('/lab/feedback-contract-noise/noise-sweep.json').then(function (r) { return r.json(); }).then(function (d) {
+    draw(d);
+    mq.addEventListener('change', function () { draw(d); });
+  });
+})();
+</script>
+
+*Reported validation gain over 50% after 1,000 pure-noise submissions,
+validation n = 25,000, mean of 5 seeds with ±1 SD bands. Hover for values.*
 
 | predictions changed per submission (m) | exact | paired SE | fixed 0.005 |
 |---:|---:|---:|---:|
-| 2 | 1.9 | 1.9 | 0.0 |
-| 10 | 4.2 | 2.8 | 0.0 |
-| 50 | 5.8 | 3.9 | 0.0 |
-| 100 | 5.8 | 4.3 | 0.0 |
+| 2 | 1.9 | 1.9 | 0.1\* |
+| 10 | 4.2 | 2.8 | 0.1\* |
+| 50 | 5.8 | 3.9 | 0.1\* |
+| 100 | 5.8 | 4.3 | 0.1\* |
 | 1,000 | 3.4 | 2.7 | 0.3 |
 | 10,000 | 1.2 | 0.9 | 0.8 |
-| boosting attack | 4.5 | 0.7 | 0.7 |
+| boosting attack | 4.4 | 0.7 | 0.7 |
 
 *Reported validation gain in accuracy points after 1,000 submissions, mean of 5
 seeds (spread about ±0.2–0.3). For the boosting row, the validation gain of the
-final majority vote. Fresh-test gain is within ±0.3 of zero in every cell.*
+final majority vote. \*No submission accepted; the value is the first random
+guess's luck. Fresh-test gain is within ±0.3 of zero in every cell.*
 
 The paired-SE rule stops the boosting attack, as Blum and Hardt showed: 0.7
-points, against 4.5 for exact feedback. Against small edits it only slows things
+points, against 4.4 for exact feedback. Against small edits it only slows things
 down. At *m* = 50 it lets through two-thirds of exact feedback's fake gain. Real
 accuracy on fresh labels is 50% throughout. The damage takes many submissions to
 build: at *m* = 50 the fake gain is 0.33 vs 0.25 points after 30 submissions and
@@ -146,10 +194,10 @@ There is also an edge case in how the formula is written. With the population
 standard deviation (`np.std`'s default), a one-row improvement always clears the
 bar: the threshold is √(1 − 1/*n*)/*n*, just under the 1/*n* the score moves by.
 At *m* = 1 the rule then behaves exactly like exact feedback. Blum and Hardt
-specify the sample standard deviation, which blocks *m* = 1. It doesn't help at
-*m* = 2. The same tie can happen whenever *m* is a perfect square: at *m* = 100
+specify the sample standard deviation, which blocks *m* = 1. At *m* = 2 both
+versions behave exactly like exact feedback. The same tie can happen whenever *m* is a perfect square: at *m* = 100
 the sample version gives 3.8 points instead of 4.3, which is the bump in the
-blue curve. At the other sizes in the table the two versions agree (at
+blue line. At the other sizes in the table the two versions agree (at
 *m* = 10,000 an exact tie is too rare to matter).
 
 The curves rise and then fall because the gain eats itself. A champion that is
@@ -162,7 +210,7 @@ because a 0.005 jump is 125 rows at once.
 
 ### A scripted hill-climber
 
-Realistic edits are not small in this sense. On the coin-flip labels, a one-step
+Most of these edits are not small in this sense. On the coin-flip labels, a one-step
 tweak changes a third of the validation predictions (median 8,300 of 25,000). A
 boosted tree fit to noise reshuffles its noise whenever you touch it. On
 learnable labels a tweak changes about 600 predictions, and adding a member to
@@ -191,8 +239,16 @@ the same runs with a stop after 5 consecutive submissions without an update
 
 Three readings. First, a scripted searcher on 25,000 validation rows doesn't
 overfit much: under a point of inflation after 200 submissions, even with exact
-feedback. The paired-SE rule cuts it by 39–56% on coin-flip labels, but the
-seed-to-seed spread is as large as the difference.
+feedback. On coin-flip labels the paired-SE rule cuts it by 39–56% and the
+fixed margin by 48–71%, but the seed-to-seed spread is as large as the
+differences.
+
+Edit size didn't predict the damage the way the pure-noise sweep suggests.
+Blending on learnable labels changed 36–107 rows per edit, the worst range in
+the sweep, yet its inflation stayed under 0.2 points. The worst inflation,
++0.79, came from blending on coin flips at 1,300–4,000 rows per edit. Real edits
+aren't random flips. My guess, which I didn't test, is that they keep changing
+the same rows near the decision boundary rather than fresh ones.
 
 Second, the patience stop does as much as the threshold. Exact feedback plus
 "stop after 5 rounds without improvement" lands within noise of the paired-SE
@@ -212,9 +268,10 @@ That is the floor the paper adds, with its constant unstated.
 
 Patience has a cost too, but a small one here. With a patience of 5, exact
 feedback kept +0.35 of the +0.38 real ensembling gain and the paired-SE rule
-kept +0.27 (5 seeds, within noise of each other). On coin-flip tweaks the fixed
-margin had the lowest inflation (+0.15, within noise of the others); on
-learnable labels it accepted nothing with either searcher.
+kept +0.27 (5 seeds, within noise of each other). On coin-flip labels, without
+patience, the fixed margin had the lowest inflation with both searchers (+0.15
+and +0.41, within noise of the others); on learnable labels it accepted nothing
+with either searcher.
 
 ## What it means
 
@@ -225,18 +282,18 @@ one. It only slows a searcher that makes many correlated small edits: each
 edit gets a fresh chance at a one-standard-error fluke (16% against an
 unselected champion, fewer once the champion is itself a lucky pick), and at
 50–100 rows per edit it still lets through two-thirds to three-quarters of
-exact feedback's fake gain. Which kind your agent is depends on the edit. In my
-runs, adding a model to a blend on real data changed 36–107 rows, squarely in
-the worst range. Hyperparameter tweaks on noise changed a third of the
-predictions, where every rule's fake gain is small. On the evidence here, the
-thing that actually limits damage is the number of submissions: a patience
-stop, a budget, or both.
+exact feedback's fake gain. Real searchers sit somewhere between those two
+cases, and my scripted ones overfit less than random flips of the same size
+would: after 200 submissions, 0.79 points vs 1.4–2.4 for blending on coin flips,
+and 0.16 vs about 1.9 for blending on learnable labels. On the evidence here, the biggest lever was the number of submissions:
+a patience stop, a budget, or both.
 
 What I'd take from it if I were writing an agent harness:
 
-- Log *m*, the number of validation predictions each submission changes. It
-  tells you which regime you're in. The harness can log it without releasing
-  anything, and it needs no labels.
+- Log *m*, the number of validation predictions each submission changes. Many
+  accepted updates at 10–1,000 rows each is a warning sign, not a measurement
+  of damage. The harness can log it without releasing anything, and it needs no
+  labels.
 - Prefer the paired-SE rule over a fixed margin. The one fixed margin I tried
   (0.005) blocked every real gain here, and the paper argues that a margin small
   enough to let real gains through is hard to pick in advance.
@@ -253,8 +310,9 @@ is 0-1 loss. The paper scores Criteo with AUC, which is not an average of
 per-example losses, and it doesn't say what vector the standard deviation is
 taken over. Validation size is fixed at 25,000. Smaller sets should make every
 effect here larger (untested here; the paper's Table 3 reports larger gaps at
-smaller validation sizes for exact feedback). Five seeds separate the pure-noise curves cleanly; for the
-hill-climber they don't separate paired SE from exact feedback on inflation. I
+smaller validation sizes for exact feedback). Five seeds separate the
+pure-noise curves near the peak, not at *m* = 10,000; for the hill-climber they
+don't separate the rules on inflation. I
 didn't test Thresholdout or other differential-privacy mechanisms.
 
 ## Reproduce it
@@ -265,7 +323,7 @@ Everything is in
 per-submission logs for all 60 runs, and the analysis and plotting scripts.
 
 ```sh
-pip install -r requirements.txt   # numpy 2.1.3, scikit-learn 1.5.2, matplotlib 3.9.2
+pip install -r requirements.txt   # numpy 2.1.3, scipy 1.14.1, scikit-learn 1.5.2, matplotlib 3.9.2
 python sim.py                     # pure noise + boosting attack, ~1 min
 ./run_agent.sh tweak              # ~10 min on 4 cores
 ./run_agent.sh ensemble           # ~25 min on 4 cores
