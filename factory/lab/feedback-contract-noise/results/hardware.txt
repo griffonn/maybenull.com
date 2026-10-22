@@ -1,0 +1,7 @@
+CPU(s):                                  4
+Model name:                              Intel(R) Xeon(R) Processor @ 2.10GHz
+               total        used        free      shared  buff/cache   available
+Mem:              15           0          12           0           2          15
+Python 3.11.17
+experiment start: 2026-10-22T06:42:25Z
+agent runs: 124 CPU-minutes over 60 runs
