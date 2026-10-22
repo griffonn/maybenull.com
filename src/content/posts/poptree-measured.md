@@ -61,7 +61,7 @@ equal buckets, and each bucket holds at most one key. A search *pops* the found
 key up to the highest level where its bucket isn't at the edge of the key
 space. It demotes any key sitting in the same bucket or in either neighbour,
 then patches any run of three empty buckets by promoting a key from the level
-below:
+below. Condensed from `poptree.cpp`:
 
 ```cpp
 // clearing demotions, levels [t, li): nobody may sit in x's bucket or next to it
@@ -235,7 +235,9 @@ Plainly:
   descending one expensive (26.3).
 - **Larger n doesn't change the picture.** At n = 531,441, the ratio of
   PopTree to static is 1.10 on uniform, 0.75 on shuffled Zipf, 0.71 on the
-  81-apart hot set (now 6,561 keys) and 1.04 on the adjacent one.
+  81-apart hot set (now 6,561 keys) and 1.04 on the adjacent one. The splay
+  crossover moves: with 6,561 hot keys, PopTree already wins at spacing 9
+  (16.24 against 16.34).
 
 ## What it means
 
@@ -264,9 +266,10 @@ Takeaways:
 - For scans, walks and contiguous hot ranges, a balanced tree can't adapt, by
   theorem. You need a splay tree, a finger search, or a cache in front of the
   tree.
-- On access patterns it can't exploit, PopTree touches about as many nodes as
-  doing nothing or more (9% more on uniform, 77% more on a descending scan) and
-  does about 20 restructuring operations per search. A plain
+- On access patterns it can't exploit, PopTree's cost is set by its BST layout,
+  not by adaptation: from 24% fewer nodes than doing nothing (ascending scan)
+  to 77% more (descending scan), and 9% more on uniform access, plus about 20
+  restructuring operations per search. A plain
   balanced tree is the safer default unless you know your hot keys are spread
   out.
 
@@ -274,7 +277,7 @@ Takeaways:
 
 - **The unit is nodes touched, not time.** I didn't build a pointer-based
   PopTree with rotations. The restructuring column shows that its upkeep is not
-  free: about 11 to 27 skip-list operations per search across all runs.
+  free: about 11 to 27 skip-list operations per search across the grid runs.
 - **The BST layout matters by a constant.** The paper's chains are one way to
   lay out each group. A median-split layout, which I also measured, costs 1–6%
   less on every non-scan workload at both sizes and flips the scans (21.4
@@ -293,8 +296,9 @@ Takeaways:
   mix adjacency and spread, and OPT is about how they mix.
 - **OPT(X) has unknown constants.** I evaluated the formula as written. Across
   the 12 workloads, its rank correlation with PopTree's skip-list level (the
-  quantity the paper bounds) is 0.92 at n = 3^10 and 0.87 at n = 3^12. It
-  can't tell you the absolute cost.
+  quantity the paper bounds) is 0.92 at n = 3^10 and 0.87 at n = 3^12. With
+  BST nodes touched it's lower (0.74 and 0.67), which is the layout constant
+  showing. It can't tell you the absolute cost.
 
 ## Reproduce it
 
