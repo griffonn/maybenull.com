@@ -6,8 +6,8 @@ Experiment code for the maybenull.com post on
 implementation of its SkipPopList (Section 3.1) from the text.
 
 Question: the paper proves that the best possible self-adjusting weight-balanced (BB[α]) tree
-costs OPT(X) up to a constant. Under OPT, searching x costs little only when no key near x in
-sorted order has come up since x was last searched. How big is that effect, and how does PopTree
+costs OPT(X) up to a constant. Equation (1) charges a repeat search of x about log(n/d), d = the
+distance to the nearest other key searched since x's previous search, plus an end-of-range term. How big is that effect, and how does PopTree
 compare with a plain balanced tree and a splay tree, in one unit (BST nodes touched per search)?
 
 ## Files
