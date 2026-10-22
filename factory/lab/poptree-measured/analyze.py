@@ -6,9 +6,9 @@ from collections import defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 RES = os.path.join(HERE, "results")
 ORDER = ["uniform", "zipf_spread", "zipf_contig", "hot_spread", "stride81", "stride27", "stride9",
-         "stride3", "hot_contig", "walk", "sequential"]
-METRICS = ["poptree", "poptree_level", "splay", "static", "entropy_static", "opt", "opt_term1", "opt_term2",
-           "restructure_ops", "min_alpha"]
+         "stride3", "hot_contig", "walk", "sequential", "sequential_desc"]
+METRICS = ["poptree", "poptree_median", "poptree_level", "splay", "static", "entropy_static", "opt", "opt_term1", "opt_term2",
+           "restructure_ops", "min_alpha", "min_alpha_median"]
 
 
 def load(name):
@@ -35,6 +35,7 @@ def main():
     check = load("check_L8.jsonl")
     summary["check_L8"] = {"all_checked": all(r["checked"] for r in check),
                            "min_alpha": min(r["min_alpha"] for r in check),
+                           "min_alpha_median": min(r["min_alpha_median"] for r in check),
                            "workloads": len(check), "m": check[0]["m"], "n": check[0]["n"]}
     for name in ["grid_L10", "grid_L12"]:
         p = os.path.join(RES, name + ".jsonl")
@@ -44,16 +45,20 @@ def main():
     for name in ["grid_L10", "grid_L12"]:
         if name in summary:
             g = summary[name]; ws = sorted(g)
-            a = [g[w]["poptree"]["mean"] for w in ws]; b = [g[w]["opt"]["mean"] for w in ws]
+            b = [g[w]["opt"]["mean"] for w in ws]
             rank = lambda v: [sorted(v).index(x) for x in v]
             k = len(ws)
-            summary[name + "_opt_spearman"] = 1 - 6 * sum((x - y) ** 2 for x, y in zip(rank(a), rank(b))) / (k * (k * k - 1))
+            for metric in ["poptree", "poptree_level"]:
+                a = [g[w][metric]["mean"] for w in ws]
+                summary[f"{name}_opt_spearman_{metric}"] = 1 - 6 * sum((x - y) ** 2 for x, y in zip(rank(a), rank(b))) / (k * (k * k - 1))
     with open(os.path.join(RES, "summary.json"), "w") as f:
         json.dump(summary, f, indent=1)
     print("invariant check:", summary["check_L8"])
     for name in ["grid_L10", "grid_L12"]:
-        if name + "_opt_spearman" in summary:
-            print(f"{name}: Spearman(OPT, PopTree) over workloads = {summary[name + '_opt_spearman']:.3f}")
+        for metric in ["poptree", "poptree_level"]:
+            key = f"{name}_opt_spearman_{metric}"
+            if key in summary:
+                print(f"{name}: Spearman(OPT, {metric}) over workloads = {summary[key]:.3f}")
     for name in ["grid_L10", "grid_L12"]:
         if name not in summary:
             continue
@@ -61,14 +66,14 @@ def main():
         any_w = next(iter(g.values()))
         print(f"\n### {name}: n={any_w['n']}, m={any_w['m']}, seeds={any_w['seeds']} "
               "(nodes touched per search, mean [min-max over seeds]; OPT in bits, constants dropped)")
-        print("| workload | PopTree | splay | static balanced | offline entropy BST | PopTree/static | OPT(X) term | restructure ops |")
-        print("|---|---|---|---|---|---|---|---|")
+        print("| workload | PopTree (paper layout) | PopTree (median layout) | skip-list level | splay | static balanced | offline entropy BST | PopTree/static | OPT(X) term | restructure ops |")
+        print("|---|---|---|---|---|---|---|---|---|---|")
         for w in ORDER:
             if w not in g:
                 continue
             d = g[w]
             f = lambda k: f"{d[k]['mean']:.2f} [{d[k]['min']:.2f}-{d[k]['max']:.2f}]"
-            print(f"| {w} | {f('poptree')} | {f('splay')} | {f('static')} | "
+            print(f"| {w} | {f('poptree')} | {f('poptree_median')} | {f('poptree_level')} | {f('splay')} | {f('static')} | "
                   f"{f('entropy_static')} | {d['poptree']['mean'] / d['static']['mean']:.2f} | {d['opt']['mean']:.2f} | "
                   f"{d['restructure_ops']['mean']:.1f} |")
 

@@ -20,7 +20,7 @@ def pack(g, workloads):
 g = S["grid_L10"]
 WL = [("uniform", "uniform"), ("zipf_spread", "Zipf, keys shuffled"), ("zipf_contig", "Zipf, keys adjacent"),
       ("hot_spread", "729 hot keys, random spots"), ("hot_contig", "729 hot keys, adjacent"),
-      ("walk", "random walk ±8"), ("sequential", "sequential scan")]
+      ("walk", "random walk ±8"), ("sequential", "scan, ascending"), ("sequential_desc", "scan, descending")]
 fig1 = {"n": next(iter(g.values()))["n"], "m": next(iter(g.values()))["m"],
         "seeds": next(iter(g.values()))["seeds"], "workloads": [w for w, _ in WL],
         "labels": [l for _, l in WL], "arms": pack(g, [w for w, _ in WL])}

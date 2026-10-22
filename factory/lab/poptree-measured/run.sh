@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Full grid. ~15 min on 4 cores. Results: results/*.jsonl, hardware/time in results/hardware.txt
+# Full grid. ~10 min on 4 cores. Results: results/*.jsonl, hardware/time in results/hardware.txt
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p results
 g++ -O2 -std=c++17 -o poptree poptree.cpp
 { echo "date: $(date -u)"; lscpu | grep -E 'Model name|^CPU\(s\)'; free -g | head -2; g++ --version | head -1; } > results/hardware.txt
-WL="uniform sequential walk hot_contig stride3 stride9 stride27 stride81 hot_spread zipf_contig zipf_spread"
+WL="uniform sequential sequential_desc walk hot_contig stride3 stride9 stride27 stride81 hot_spread zipf_contig zipf_spread"
 start=$(date +%s)
 # 1) invariant check: every invariant after every search, n = 3^8
 for w in $WL; do echo "./poptree 8 60000 $w 7 check"; done | xargs -P 4 -I{} sh -c '{}' > results/check_L8.jsonl
