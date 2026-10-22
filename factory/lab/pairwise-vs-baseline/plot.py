@@ -18,7 +18,7 @@ LBL = {"pair": "pairwise CE + entropy decode (paper)", "mse": "pointwise MSE, st
 
 runs = collections.defaultdict(list)
 for f in glob.glob(os.path.join(R, "*.json")):
-    if f.endswith("baselines.json"):
+    if f.endswith(("baselines.json", "const_random_test.json")):
         continue
     d = json.load(open(f)); a = d["args"]
     runs[(a["arm"], a["sampling"], a["n"])].append(d)

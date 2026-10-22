@@ -15,6 +15,7 @@ baseline and the split?
 | `prep.py` | Decodes UTKFace into a 64×64 grayscale cache (`data/utk64.npz`, not committed). Grayscale formula as in the paper's code. |
 | `exp.py` | One training run. Arms: `pair` (2-channel pair input, cross-entropy on "which is older", the paper's max-entropy decode against the training images as references), `mse` `l1` (1-channel input, standardized age target), and `mse_raw` (MSE on raw age in years). Same backbone (the repo's ResNet-10-style `AgeRanker`, as its forward pass actually runs), AdamW 5e-4 / wd 1e-2, batch 32, horizontal flips, fixed step budget, no early stopping. |
 | `baselines.py` | Constant predictors (training mean/median) and ridge regression on raw pixels, on the same splits. |
+| `const_random_test.py` | Constant-predictor MAE when the 200 test faces are drawn at random, as the repo does. |
 | `analyze.py` | Markdown table + `results/summary.csv`. |
 | `plot.py` | `figs/mae-vs-n.png`, `figs/scatter-n100.png`. |
 | `run.sh` | Main grid: 3,000 steps, N ∈ {100, 300, 1000}. ~80 min on 4 cores. |
@@ -43,7 +44,8 @@ baseline and the split?
 pip install torch numpy scipy scikit-learn matplotlib pillow
 # UTKFace ("UTKFace" folder of jangedoo/utkface-new on Kaggle, 23,708 images)
 python3 prep.py /path/to/UTKFace data/utk64.npz     # ~30 s
-python3 baselines.py                                # ~10 s
+python3 baselines.py                                # ~10 s idle
+python3 const_random_test.py                        # constant MAE on 20 random test draws
 ./run.sh && ./run_long.sh && ./run_raw.sh           # ~2 h on 4 cores
 python3 analyze.py && python3 plot.py
 ```

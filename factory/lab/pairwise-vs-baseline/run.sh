@@ -2,6 +2,7 @@
 # Full grid, 4 single-threaded jobs at a time. ~80 min on 4 Xeon cores.
 # Needs data/utk64.npz (python3 prep.py <UTKFace dir> data/utk64.npz) and results/baselines.json (python3 baselines.py).
 cd "$(dirname "$0")"
+mkdir -p logs results/long
 {
   for s in 0 1 2; do echo "--arm pair --n 1000 --seed $s"; done
   echo "--arm pair --n 100 --seed 0 --steps 10000 --eval_every 1000 --out results/long"

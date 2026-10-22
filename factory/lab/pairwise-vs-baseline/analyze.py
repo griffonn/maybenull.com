@@ -6,7 +6,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 R = os.path.join(HERE, "results")
 runs = collections.defaultdict(list)
 for f in glob.glob(os.path.join(R, "*.json")) + glob.glob(os.path.join(R, "long", "*.json")):
-    if f.endswith("baselines.json"):
+    if f.endswith(("baselines.json", "const_random_test.json")):
         continue
     d = json.load(open(f)); a = d["args"]
     pred, true = np.array(d["pred"]), np.array(d["true"])

@@ -1,14 +1,14 @@
 ---
 title: "Pairwise learning, against a baseline that learns"
-description: A new paper reports that training on "which face is older?" cuts small-data age error from 22.6 to 13.9 years. On the split its code builds, 22.6 is what a constant scores. Plain MSE regression, same network, gets 12.0–13.7 and beats or ties pairwise at every N we tried.
+description: A new paper reports that training on "which face is older?" cuts small-data age error from 22.6 to 13.9 years. On the paper's kind of split, predicting one constant age scores 22.2. Plain MSE regression, same network, gets 12.0–13.7 and beats or ties pairwise at every N we tried.
 date: 2026-10-22
 draft: false
 ---
 
 A new paper trains a network on pairs of faces ("which one is older?") instead
 of on ages. With 100 training faces it reports 13.9 years of mean absolute error,
-against 22.6 for ordinary regression. On the split the paper's code builds,
-predicting one age for every face scores 22.2.
+against 22.6 for ordinary regression. On that kind of split, predicting one
+age for every face scores 22.2.
 
 ## Context
 
@@ -29,16 +29,17 @@ To predict an age, the model compares the test face against every labeled
 reference face. It averages P(test is older) per reference age, smooths that
 curve, and picks the age where the probability is closest to 0.5 (maximum
 entropy). On UTKFace, a public set of 23,708 faces labeled with age, the paper
-reports MAE 13.9 vs. 22.6 at N=100 (5 seeds, p = .003) and 3.64 years on the
-full dataset.
+reports MAE 13.9 vs. 22.6 for one N=100 run, a gap it finds significant across
+5 paired seeds (p = .003), and 3.64 years on the full dataset.
 
 ## The question
 
 A 22.6-year error at N=100 is a strong claim about the baseline, so that's
 where I looked. The pointwise UTKFace baseline isn't in the repository. The
 paper says it tried a tanh output, an unnormalized output and a linear rescale.
-It doesn't mention standardizing the target (subtracting the mean age and
-dividing by the standard deviation), which is the usual first move.
+It doesn't say what the rescale was. Standardizing the target (subtracting
+the mean age and dividing by the standard deviation) is the usual choice, and it
+is itself a linear rescale, so I ran MSE both with and without it.
 
 So, three questions:
 
@@ -50,13 +51,16 @@ So, three questions:
 ## Setup
 
 **Data.** UTKFace, the 23,708 cropped faces, converted to grayscale with the
-paper's formula and resized to 64×64. That is smaller than the paper's 192×192,
+formula from the paper's code and resized to 64×64. That is smaller than the paper's 192×192,
 to fit a CPU budget.
 
 **Splits.** The test set is 200 faces at evenly spaced positions in the
 age-sorted dataset, which is how the paper describes its N=100 test set. It's
-the same for every run. Training sets follow the repo's
-`PairwiseUTKFace` class: N/10 faces from each age decade (0–9 through 90+). So
+the same for every run. The repo's dataset class draws its 200 test faces at
+random instead. Over 20 such random draws, the constant below scores
+21.5 ± 1.1 (19.3–23.3), so this choice doesn't change the story.
+
+Training sets follow the repo's `PairwiseUTKFace` class: N/10 faces from each age decade (0–9 through 90+). So
 the training set is age-balanced, while the test set follows the dataset, which
 is mostly 20- and 30-year-olds. The paper doesn't say which split its N=100
 figure used, so I also ran a natural (uniformly sampled) training set.
@@ -97,8 +101,8 @@ that is 1,000 passes per test face.
 
 ## Results
 
-Test MAE in years, mean ± standard deviation over seeds (5 seeds; 3 for N=1000
-and the 10k-step rows). Decade-balanced training sets.
+Test MAE in years, mean ± standard deviation over seeds (5 seeds; 3 for the
+N=1000 network runs and the 10k-step rows). Decade-balanced training sets.
 
 | | N=100 | N=100, 10k steps | N=300 | N=1000 |
 |---|---|---|---|---|
@@ -115,14 +119,14 @@ The paper's numbers at N=100, for reference: pairwise 13.9, MSE 22.6.
 
 Plainly:
 
-- **The constant explains the 22.6.** A decade-balanced training set has a mean
-  age near 50, and the test set's median is 29. Predicting 49.6 for every face
-  gives 22.2. A baseline at 22.6 does no better than predicting one age for
-  everyone.
+- **A constant matches the 22.6.** A decade-balanced training set has a mean
+  age near 50, and the test set's median is 29. Predicting the training mean
+  (about 49) for every face gives 22.2 on average. A baseline at 22.6 does
+  no better than predicting one age for everyone.
 - **Our pairwise arm reproduces the paper.** 13.7 at 3k steps and 13.0 at
-  10k steps, against the paper's 13.9. The change of input resolution didn't
+  10k steps, against the paper's 13.9 (a single run). The change of input resolution didn't
   break it.
-- **Standardized MSE beats pairwise at every N.** At N=100 the gap is within
+- **Standardized MSE matches or beats pairwise at every N.** At N=100 the gap is within
   noise at 3k steps: pairwise is ahead on 2 of 5 paired seeds, by 0.1–0.2 years.
   Given 10k steps, MSE is ahead on all 3 seeds, by 0.2–1.5 years. At N=300 and
   N=1000, MSE is ahead on every seed, by 0.8–3.0 years. The gap doesn't close as
@@ -142,9 +146,9 @@ over-predicts infants and under-predicts the very old. Pairwise keeps the full
 range, but it's noisier in the 20–60 band where most faces are. It can also
 only answer with ages that exist in the reference set.
 
-One more number, about protocol. The paper's training script picks its
-checkpoint by accuracy on the test set. Doing the same here (best of the
-evaluated checkpoints by test MAE) lowers the error by 0.1–0.7 years for
+One more number, about protocol. The paper says it early-stops on its test
+set (its script tracks test-set pairwise accuracy). The equivalent here (best of
+the evaluated checkpoints by test MAE) lowers the error by 0.1–0.7 years for
 most arms. Raw-target MSE gains the most, 2.7 years (13.7 to 10.9), because its
 best checkpoints come early and it drifts afterwards. Picking on the test set
 flatters exactly the runs that are least stable, and it isn't a held-out number.
@@ -161,8 +165,9 @@ to put the scale back by comparing against references.
 Most of the headline gap comes from the baseline. I tried the obvious ways to
 make plain regression fail (raw targets, standardized targets, L1, short and
 long training) and none of them came near 22.6. The worst any MSE run did at
-N=100 was 15.5. Whatever the paper's baseline did, it scored like a model that
-learned nothing, and a constant is enough to reproduce its number.
+N=100 was 15.5. The paper's own Fig. 1A shows its baseline's predictions
+bunched near the training mean. Whatever that baseline did, it scored like a
+model that learned nothing, and a constant is enough to reproduce its number.
 
 Takeaways:
 
@@ -173,13 +178,15 @@ Takeaways:
   differ, as they do with decade-balanced sampling, that constant can be far
   worse than the test set's own median (15.2 here). A 22-year baseline should
   look suspicious.
-- Pairwise training plus decode costs N forward passes per prediction. It buys
-  calibrated spread, not accuracy.
+- Pairwise training plus decode costs N forward passes per prediction (8N with
+  the paper's test-time augmentation; its binary-search decode trims this at
+  full scale). It buys spread, not accuracy.
 
 **Where this breaks.** This is 64×64 input, not 192×192, and has no 8×
 test-time augmentation for any arm. Our N=100 pairwise result matches the
 paper's, but higher resolution could favor one arm. I didn't tune either arm
-beyond the paper's optimizer settings; tuning would likely help both. I can't
+beyond the repo's optimizer settings, and I used a constant learning rate where
+the paper's script uses ReduceLROnPlateau; tuning would likely help both. I can't
 see the paper's actual baseline code, so "it learned nothing" is an inference
 from its score, not from its code. I didn't test the paper's other claims: the
 3.64 full-dataset result (which uses the test images as references) or the
@@ -197,6 +204,7 @@ it.
 ```sh
 python3 prep.py /path/to/UTKFace data/utk64.npz   # 30 s
 python3 baselines.py                              # 10 s
+python3 const_random_test.py                      # 1 s
 ./run.sh && ./run_long.sh && ./run_raw.sh         # ~2 h on 4 cores
 python3 analyze.py && python3 plot.py
 ```
