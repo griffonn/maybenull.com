@@ -27,7 +27,7 @@ for f in sorted(glob.glob(os.path.join(R, "grok", "*.json"))):
     d = json.load(open(f))
     if d["arm"] not in SHOW:
         continue
-    L = d["log"][::5]  # every 50 steps
+    L = d["log"]  # every logged point (10 steps), so one-point spikes are not dropped
     curves.setdefault(d["arm"], []).append({"seed": d["seed"], "step": [r[0] for r in L],
         "ce": [float("%.3g" % max(r[1], 1e-12)) for r in L], "margin": [round(r[3], 2) for r in L],
         "test": [round(100 * r[7], 1) for r in L]})
