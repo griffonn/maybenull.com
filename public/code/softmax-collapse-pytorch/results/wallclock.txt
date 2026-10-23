@@ -1,0 +1,2 @@
+2026-10-23T06:42:59Z experiment start
+experiments end 2026-10-23T07:56:01Z; grok grid ~50 runs x ~150-190 s on 1 thread each, 4 parallel (~33 min); digits 12 runs (~12 min); speed bench 36 s; cliff sweeps ~25 s

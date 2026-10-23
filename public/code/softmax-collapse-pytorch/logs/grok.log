@@ -1,0 +1,10 @@
+std_bf16logits s1: test 0.996 margin 4.45 184s
+std_bf16logits s3: test 0.954 margin 4.35 189s
+std_bf16logits s2: test 1.000 margin 5.02 190s
+std_bf16logits s0: test 0.927 margin 4.43 192s
+std_bf16logits s4: test 0.983 margin 3.32 187s
+fixed_bf16logits s0: test 1.000 margin 17.11 191s
+fixed_bf16logits s1: test 0.988 margin 17.38 196s
+fixed_bf16logits s2: test 1.000 margin 17.11 200s
+fixed_bf16logits s3: test 1.000 margin 17.28 184s
+fixed_bf16logits s4: test 0.973 margin 17.20 182s
