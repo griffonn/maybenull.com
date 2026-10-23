@@ -46,7 +46,8 @@ something narrower:
    use bf16?
 2. On the paper's grokking task, does the fix do better than knobs you already
    have: Adam's ε (the small constant Adam adds to its denominator), label
-   smoothing, or casting the loss to fp64? The paper predicts the ε result in
+   smoothing (training toward 1 − α on the right class instead of 1, which caps
+   the margin), or casting the loss to fp64? The paper predicts the ε result in
    one sentence and doesn't run it.
 3. Does an ordinary classifier ever get that confident?
 4. What does the fix cost? The paper says the slowdown is negligible but gives
@@ -161,12 +162,11 @@ Three things the paper doesn't show:
 
 - **In fp32 and fp64, the cliff depends on how the wrong-class mass is spread.**
   When one runner-up holds all of it, PyTorch matches the paper's number. When
-  the mass is spread evenly, the cliff comes earlier. In fp32 it moves by 0.66–0.69
-  (about ln 2) for K from 32 to 131,072, and by 1.95 (about ln 7) at K = 8,
-  where it lands at 14.69. In fp64 the shift is 1.94 at K = 8 and 2.05–2.08 for
-  K ≥ 32. In bf16 and fp16 it barely moves (by 0.03 or less). At K ≥ 32,768, fp16
-shows no cliff at all, because the wrong-class gradients underflow first. The fp32 numbers fit the
-  summation order. At K = 8 each tiny term is added to the 1.0 on its own and
+  the mass is spread evenly, the cliff comes earlier: in fp32 by about ln 2
+  (0.66–0.69) for K = 32 to 131,072, and by about ln 7 (1.95) at K = 8. fp64
+  shifts by about 2. bf16 and fp16 barely move. (At K ≥ 32,768, fp16 has no
+  cliff, because the wrong-class gradients underflow first.) The fp32 numbers
+  fit the summation order. At K = 8 each tiny term is added to the 1.0 on its own and
   lost on its own. At larger K, a vectorized reduction adds the 1.0 to only
   part of the small mass. That reading is my inference from the numbers. I
   didn't trace the kernel. At K = 32, `log_softmax` followed by
@@ -193,18 +193,18 @@ underflow, but they do it together, not the correct class first.
 Five seeds per arm, 10,000 full-batch steps. "Dip" is the worst drop in test
 accuracy, after a run first reaches 90%.
 
-| arm | final test acc, % (mean ± sd, min) | seeds ≥ 99% | spikes per run | worst dip, pts | final mean margin |
-|---|---|---|---|---|---|
-| standard, fp32 | 98.9 ± 1.9 (95.6) | 3/5 | 7.0 | 15.4 | 9.4 |
-| **fixed, fp32** | **100.0 ± 0.0 (100.0)** | **5/5** | 0.4 | 1.9 | 17.0 |
-| **standard, Adam ε = 1e-7** | **99.9 ± 0.2 (99.6)** | **5/5** | **0.0** | 0.4 | 14.7 |
-| standard, label smoothing 0.01 | 46.6 ± 3.8 (42.2) | 0/5 | 0.0 | — | 4.6 |
-| standard, loss in fp64 | 98.1 ± 3.6 (91.7) | 4/5 | 0.2 | 22.2 | 17.2 |
-| standard, `autocast(bf16)` | 98.9 ± 1.6 (96.9) | 3/5 | 6.2 | 24.3 | 13.9 |
-| standard, loss on bf16 logits | 97.2 ± 3.1 (92.7) | 4/5 | 40.8 | 50.9 | 4.3 |
-| fixed, loss on bf16 logits | 99.2 ± 1.2 (97.3) | 4/5 | 0.0 | 1.5 | 17.2 |
-| standard, whole model bf16 | 46.2 ± 3.5 (42.4) | 0/5 | 30.8 | — | 5.5 |
-| fixed, whole model bf16 | 44.3 ± 2.9 (41.4) | 0/5 | 8.0 | — | 14.3 |
+| arm | final test acc, % (mean ± sd, min) | seeds that ever reached 99% | seeds at ≥ 99% at step 10k | spikes per run | worst dip, pts | final mean margin |
+|---|---|---|---|---|---|---|
+| standard, fp32 | 98.9 ± 1.9 (95.6) | 3/5 | 3/5 | 7.0 | 15.4 | 9.4 |
+| **fixed, fp32** | **100.0 ± 0.0 (100.0)** | **5/5** | **5/5** | 0.4 | 1.9 | 17.0 |
+| **standard, Adam ε = 1e-7** | **99.9 ± 0.2 (99.6)** | **5/5** | **5/5** | **0.0** | 0.4 | 14.7 |
+| standard, label smoothing 0.01 | 46.6 ± 3.8 (42.2) | 0/5 | 0/5 | 0.0 | — | 4.6 |
+| standard, loss in fp64 | 98.1 ± 3.6 (91.7) | 4/5 | 3/5 | 0.2 | 22.2 | 17.2 |
+| standard, `autocast(bf16)` | 98.9 ± 1.6 (96.9) | 3/5 | 3/5 | 6.2 | 24.3 | 13.9 |
+| standard, loss on bf16 logits | 97.2 ± 3.1 (92.7) | 4/5 | 2/5 | 40.8 | 50.9 | 4.3 |
+| fixed, loss on bf16 logits | 99.2 ± 1.2 (97.3) | 4/5 | 3/5 | 0.0 | 1.5 | 17.2 |
+| standard, whole model bf16 | 46.2 ± 3.5 (42.4) | 0/5 | 0/5 | 30.8 | — | 5.5 |
+| fixed, whole model bf16 | 44.3 ± 2.9 (41.4) | 0/5 | 0/5 | 8.0 | — | 14.3 |
 
 <div id="sc-curves" style="width:100%;min-height:560px" role="img" aria-label="Exact training loss (log scale) and test accuracy over 10,000 training steps for one seed at a time, comparing standard fp32 cross-entropy, fixed fp32 cross-entropy, standard with Adam epsilon 1e-7, and standard and fixed cross-entropy computed on bf16 logits. A seed selector switches between seeds 0 to 4."></div>
 <p><label for="sc-seed">seed </label><select id="sc-seed"><option>0</option><option>1</option><option>2</option><option>3</option><option>4</option></select></p>
@@ -260,9 +260,12 @@ given seed.*
 Reading it:
 
 - **The spikes reproduce, and they line up with the cliff.** Standard fp32
-  cross-entropy produced 7 spikes in every one of its 5 runs. Before each
-  spike, the mean margin had climbed to 15.9–16.9, where the loss rounds to
-  zero. Each run's largest spike peaked at a loss of 0.12–0.72. Two seeds
+  cross-entropy produced 7 spikes in every one of its 5 runs. At the last
+  logged step before each spike, the mean margin had climbed to 15.9–16.9,
+  right around the cliff. 31–61% of training examples had a correct-class
+  probability of exactly 1.0 in fp32, which means a zero correct-class gradient. The
+  paper's account has spikes start once essentially every example is past the
+  cliff. In my runs they started with a third to two thirds past it. Each run's largest spike peaked at a loss of 0.12–0.72. Two seeds
   never reached 99% test accuracy. (The paper's standard fp32 arm ended at
   94.3 ± 5.4%. Mine did better at 98.9 ± 1.9%, possibly because of the higher
   learning rate.)
@@ -275,7 +278,8 @@ Reading it:
   5 of 5 seeds, and its worst final accuracy was 99.6%. The paper explains why
   in its Section 5. With weight decay, margins settle where the gradient is
   about the size of ε, near log(1/ε). That is 18.4 for ε = 1e-8, just past
-  fp32's cliff, and 16.1 for ε = 1e-7, just before it. My ε = 1e-7 runs
+  fp32's cliff band (16.0–16.6 in PyTorch, depending on how the wrong-class
+  mass is spread), and 16.1 for ε = 1e-7, inside it. My ε = 1e-7 runs
   settled at a mean margin of 14.7. At no logged step were more than 5–9% of
   training examples past the cliff.
 - **Label smoothing 0.01 caps the margin, and no seed grokked.** The margin
@@ -291,11 +295,14 @@ Reading it:
   standard cross-entropy spiked 38–46 times per run. In every run, test
   accuracy fell by 40–51 points at some point after first reaching 90%. The
   fixed loss on the same bf16 logits had no spikes and no dip above 1.5
-  points. Four seeds per arm still reached 99%.
-- **The whole model in bf16 didn't grok with either loss.** That's not the
-  loss's doing. AdamW updates of size lr × 1 are mostly rounded away against
-  bf16 weights. The paper reports fixed bf16 reaching 100%. It doesn't say how
-  it stores the weights, and I didn't try fp32 master weights beyond the arm above.
+  points. Four seeds per arm reached 99% at some point; at step 10,000, 2
+  standard and 3 fixed seeds were still there.
+- **The whole model in bf16 didn't grok with either loss.** Since the fixed
+  loss failed too, the loss isn't the likely cause. My guess, which I didn't
+  measure, is that AdamW's small steps round away against bf16 weights, whose
+  precision is only about 3 significant digits. The paper reports fixed bf16
+  reaching 100%. It doesn't say how it stores the weights. The "bf16 logits"
+  arms above keep the weights in fp32.
 
 The paper's claim that the fix speeds up grokking didn't reproduce here. On
 the 3 seeds where both losses reached 99%, standard got there first every time
@@ -336,7 +343,9 @@ with the slowdown relative to `F.cross_entropy` in the same round:
 | bf16, 512 × 128k | 111–113 ms | 517–550 ms (4.6–4.9×) | 306–329 ms (2.7–3.0×) |
 
 A line-by-line port is about 4–5× slower than the fused loss (one noisy round
-reached 8×). A custom backward brings that down to 1.6–3.4×. I didn't profile
+reached 8×). A custom backward brings that down to 1.6–3.4×. At a vocabulary
+of 1,000, which I left out of the table, the whole loss takes 1–4 ms and the
+ratios are too noisy to read (0.8–5.9× across rounds; `speed_summary.csv`). I didn't profile
 where the rest goes. My guess is the extra full-size temporary (z − z_t with
 the target masked), which PyTorch's fused kernel doesn't need. Timings on this
 shared machine moved by 10–25% between runs. These are CPU numbers. On a GPU, or with a fused kernel written for
@@ -366,7 +375,8 @@ Takeaways, with their limits:
 - **On this task, Adam ε = 1e-7 was as good as the new loss, at no cost.** The
   catch is that ε is not a free knob at scale. [Wortsman et al.](https://arxiv.org/abs/2309.14322)
   found the default 1e-8 already too large for a 4.8B-parameter model,
-  lowered it to 1e-15, and saw a divergence at 1e-6. Lowering ε pushes the
+  lowered it to 1e-15, and saw a divergence at 1e-6. On data like this
+  task's, where the model can fit every training example, lowering ε raises the
   equilibrium margin to log(1/ε), about 34.5 for 1e-15. That's far past the
   fp32 cliff and right at fp64's (34.7–36.7). A model that actually reached
   that equilibrium couldn't be rescued by ε or label smoothing, and an fp64
