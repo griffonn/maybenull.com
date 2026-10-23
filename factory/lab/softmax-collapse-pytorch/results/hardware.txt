@@ -1,0 +1,6 @@
+CPU(s):                                  4
+Model name:                              Intel(R) Xeon(R) Processor @ 2.10GHz
+L3 cache:                                260 MiB (1 instance)
+               total        used        free      shared  buff/cache   available
+Mem:              15           0          14           0           0          15
+python 3.11.17 torch 2.14.1+cpu sklearn 1.9.1 numpy 2.4.6
