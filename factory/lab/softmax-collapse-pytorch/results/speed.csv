@@ -1,19 +1,55 @@
-dtype,vocab,rows,impl,median_ms,min_ms
-float32,1000,1024,F.cross_entropy,2.94,2.44
-float32,1000,1024,fixed (autograd),5.12,3.45
-float32,1000,1024,fixed (autograd.Function),4.14,2.28
-float32,32000,1024,F.cross_entropy,99.78,90.79
-float32,32000,1024,fixed (autograd),370.02,353.67
-float32,32000,1024,fixed (autograd.Function),171.05,167.43
-float32,128000,512,F.cross_entropy,203.91,193.15
-float32,128000,512,fixed (autograd),758.88,601.76
-float32,128000,512,fixed (autograd.Function),303.41,266.42
-bfloat16,1000,1024,F.cross_entropy,0.75,0.7
-bfloat16,1000,1024,fixed (autograd),5.08,2.37
-bfloat16,1000,1024,fixed (autograd.Function),1.72,1.55
-bfloat16,32000,1024,F.cross_entropy,58.39,49.94
-bfloat16,32000,1024,fixed (autograd),278.89,235.33
-bfloat16,32000,1024,fixed (autograd.Function),169.79,159.56
-bfloat16,128000,512,F.cross_entropy,114.9,92.56
-bfloat16,128000,512,fixed (autograd),519.12,474.03
-bfloat16,128000,512,fixed (autograd.Function),316.64,296.4
+round,dtype,vocab,rows,impl,median_ms,min_ms
+0,float32,1000,1024,F.cross_entropy,2.84,2.56
+0,float32,1000,1024,fixed (autograd),2.38,2.32
+0,float32,1000,1024,fixed (autograd.Function),3.79,3.61
+0,float32,32000,1024,F.cross_entropy,94.56,90.77
+0,float32,32000,1024,fixed (autograd),356.46,332.67
+0,float32,32000,1024,fixed (autograd.Function),154.69,146.2
+0,float32,128000,512,F.cross_entropy,175.96,150.58
+0,float32,128000,512,fixed (autograd),706.27,659.74
+0,float32,128000,512,fixed (autograd.Function),302.66,297.54
+0,bfloat16,1000,1024,F.cross_entropy,0.59,0.56
+0,bfloat16,1000,1024,fixed (autograd),3.49,2.22
+0,bfloat16,1000,1024,fixed (autograd.Function),2.26,2.22
+0,bfloat16,32000,1024,F.cross_entropy,58.29,47.63
+0,bfloat16,32000,1024,fixed (autograd),279.93,252.17
+0,bfloat16,32000,1024,fixed (autograd.Function),171.47,159.77
+0,bfloat16,128000,512,F.cross_entropy,111.93,108.21
+0,bfloat16,128000,512,fixed (autograd),550.28,516.58
+0,bfloat16,128000,512,fixed (autograd.Function),323.87,299.73
+1,float32,1000,1024,F.cross_entropy,0.77,0.71
+1,float32,1000,1024,fixed (autograd),2.43,2.33
+1,float32,1000,1024,fixed (autograd.Function),1.19,1.01
+1,float32,32000,1024,F.cross_entropy,92.01,89.61
+1,float32,32000,1024,fixed (autograd),357.02,346.72
+1,float32,32000,1024,fixed (autograd.Function),149.44,139.05
+1,float32,128000,512,F.cross_entropy,184.58,171.42
+1,float32,128000,512,fixed (autograd),1469.59,692.26
+1,float32,128000,512,fixed (autograd.Function),312.19,288.09
+1,bfloat16,1000,1024,F.cross_entropy,0.98,0.95
+1,bfloat16,1000,1024,fixed (autograd),3.8,3.59
+1,bfloat16,1000,1024,fixed (autograd.Function),2.41,2.31
+1,bfloat16,32000,1024,F.cross_entropy,50.87,43.85
+1,bfloat16,32000,1024,fixed (autograd),264.2,242.65
+1,bfloat16,32000,1024,fixed (autograd.Function),170.33,154.78
+1,bfloat16,128000,512,F.cross_entropy,110.92,102.02
+1,bfloat16,128000,512,fixed (autograd),525.24,512.32
+1,bfloat16,128000,512,fixed (autograd.Function),329.46,283.72
+2,float32,1000,1024,F.cross_entropy,1.01,0.97
+2,float32,1000,1024,fixed (autograd),3.57,3.24
+2,float32,1000,1024,fixed (autograd.Function),1.62,1.59
+2,float32,32000,1024,F.cross_entropy,84.24,75.61
+2,float32,32000,1024,fixed (autograd),322.64,281.45
+2,float32,32000,1024,fixed (autograd.Function),139.82,123.42
+2,float32,128000,512,F.cross_entropy,176.47,168.03
+2,float32,128000,512,fixed (autograd),820.66,723.31
+2,float32,128000,512,fixed (autograd.Function),337.08,314.48
+2,bfloat16,1000,1024,F.cross_entropy,0.89,0.85
+2,bfloat16,1000,1024,fixed (autograd),4.0,3.68
+2,bfloat16,1000,1024,fixed (autograd.Function),2.43,2.18
+2,bfloat16,32000,1024,F.cross_entropy,56.4,45.49
+2,bfloat16,32000,1024,fixed (autograd),290.22,230.74
+2,bfloat16,32000,1024,fixed (autograd.Function),162.21,150.1
+2,bfloat16,128000,512,F.cross_entropy,113.11,110.55
+2,bfloat16,128000,512,fixed (autograd),517.31,491.8
+2,bfloat16,128000,512,fixed (autograd.Function),305.67,283.83

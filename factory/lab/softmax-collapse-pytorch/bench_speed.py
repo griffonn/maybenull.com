@@ -1,4 +1,4 @@
-"""Forward+backward time of fused F.cross_entropy vs the fixed CE (autograd version and
+"""Three rounds of: forward+backward time of fused F.cross_entropy vs the fixed CE (autograd version and
 custom autograd.Function), fp32 and bf16, CPU, 4 threads. Rows = tokens. Writes results/speed.csv.
 """
 import csv, time, platform
@@ -9,7 +9,8 @@ torch.set_num_threads(4)
 torch.manual_seed(0)
 fns = {"F.cross_entropy": F.cross_entropy, "fixed (autograd)": fixed_ce, "fixed (autograd.Function)": fixed_ce_fn}
 rows = []
-for dtype in [torch.float32, torch.bfloat16]:
+for rnd in range(3):
+  for dtype in [torch.float32, torch.bfloat16]:
     for V in [1000, 32000, 128000]:
         N = 1024 if V < 100000 else 512
         z0 = (torch.randn(N, V) * 3).to(dtype)
@@ -22,8 +23,23 @@ for dtype in [torch.float32, torch.bfloat16]:
             for _ in range(7):
                 t0 = time.perf_counter(); f(z, t).backward(); ts.append(time.perf_counter() - t0); z.grad = None
             ts.sort()
-            rows.append(dict(dtype=str(dtype).replace("torch.", ""), vocab=V, rows=N, impl=name,
+            rows.append(dict(round=rnd, dtype=str(dtype).replace("torch.", ""), vocab=V, rows=N, impl=name,
                              median_ms=round(ts[3] * 1000, 2), min_ms=round(ts[0] * 1000, 2)))
             print(rows[-1], flush=True)
 with open("results/speed.csv", "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
+
+# ratio summary: per round, fixed / F.cross_entropy median; report min-max over rounds
+import collections
+base = {(r["round"], r["dtype"], r["vocab"]): r["median_ms"] for r in rows if r["impl"] == "F.cross_entropy"}
+rat = collections.defaultdict(list); ms = collections.defaultdict(list)
+for r in rows:
+    ms[(r["dtype"], r["vocab"], r["impl"])].append(r["median_ms"])
+    if r["impl"] != "F.cross_entropy":
+        rat[(r["dtype"], r["vocab"], r["impl"])].append(r["median_ms"] / base[(r["round"], r["dtype"], r["vocab"])])
+with open("results/speed_summary.csv", "w", newline="") as f:
+    w = csv.writer(f); w.writerow(["dtype", "vocab", "impl", "median_ms_min", "median_ms_max", "ratio_min", "ratio_max"])
+    for k in ms:
+        rr = rat.get(k, [1.0])
+        w.writerow([*k, min(ms[k]), max(ms[k]), round(min(rr), 2), round(max(rr), 2)])
+print(open("results/speed_summary.csv").read())

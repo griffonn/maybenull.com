@@ -1,0 +1,19 @@
+dtype,vocab,impl,median_ms_min,median_ms_max,ratio_min,ratio_max
+float32,1000,F.cross_entropy,0.77,2.84,1.0,1.0
+float32,1000,fixed (autograd),2.38,3.57,0.84,3.53
+float32,1000,fixed (autograd.Function),1.19,3.79,1.33,1.6
+float32,32000,F.cross_entropy,84.24,94.56,1.0,1.0
+float32,32000,fixed (autograd),322.64,357.02,3.77,3.88
+float32,32000,fixed (autograd.Function),139.82,154.69,1.62,1.66
+float32,128000,F.cross_entropy,175.96,184.58,1.0,1.0
+float32,128000,fixed (autograd),706.27,1469.59,4.01,7.96
+float32,128000,fixed (autograd.Function),302.66,337.08,1.69,1.91
+bfloat16,1000,F.cross_entropy,0.59,0.98,1.0,1.0
+bfloat16,1000,fixed (autograd),3.49,4.0,3.88,5.92
+bfloat16,1000,fixed (autograd.Function),2.26,2.43,2.46,3.83
+bfloat16,32000,F.cross_entropy,50.87,58.29,1.0,1.0
+bfloat16,32000,fixed (autograd),264.2,290.22,4.8,5.19
+bfloat16,32000,fixed (autograd.Function),162.21,171.47,2.88,3.35
+bfloat16,128000,F.cross_entropy,110.92,113.11,1.0,1.0
+bfloat16,128000,fixed (autograd),517.31,550.28,4.57,4.92
+bfloat16,128000,fixed (autograd.Function),305.67,329.46,2.7,2.97
