@@ -17,7 +17,8 @@ numerical bugs in the standard softmax and cross-entropy. This post is about the
 first one, which the paper calls Softmax Collapse.
 
 The **logit margin** m is how far the correct class's logit sits above the
-log-sum-exp of all the other logits. The exact cross-entropy loss is
+log-sum-exp of all the other logits. Log-sum-exp, log(Σ e^z), is a smooth
+version of the max. The exact cross-entropy loss is
 log(1 + e^−m), and the exact gradient on the correct logit is about −e^−m. It
 shrinks, but it never reaches zero.
 
@@ -31,7 +32,7 @@ to 1.0, so they stay positive. The gradients stop summing to zero.
 The paper argues this is behind the "Slingshot" loss spikes seen when training
 with Adam, and behind grokking runs that stall. (Grokking: a model memorizes its
 training set early and only starts generalizing to the test set much later.) Its fix computes the margin while
-leaving the correct class out of the sum, then returns softplus(−m). It gives
+leaving the correct class out of the sum, then returns softplus(−m) = log(1 + e^−m), computed in a way that doesn't add 1 to a tiny number. It gives
 the cliffs as about 5.5 (bf16), 16.6 (fp32) and 36.7 (fp64), and its code is
 JAX.
 
@@ -78,7 +79,8 @@ margin is exactly m. I swept m and recorded the gradient that autograd
 returns for the correct class.
 
 **Grokking.** This follows the paper's description: a 1-layer, width-64 ReLU
-transformer (no LayerNorm) learning a + b mod 31. Training uses a random 50%
+transformer learning a + b mod 31. Details the paper doesn't give are my own
+choices, including no LayerNorm and PyTorch's default initialization. Training uses a random 50%
 of pairs, full batches, AdamW with betas (0.9, 0.98) and weight decay 1.0, for
 10,000 steps, with 5 seeds per arm. One deviation: the learning rate is 3e-3.
 At the paper's 1e-3, my model was still at 52–72% test accuracy at step 10,000
@@ -149,10 +151,11 @@ the thick fixed line hides the fp32 standard line. Hover for the raw values.*
 | bf16 | 5.54 | 5.55 | 5.5 |
 | fp16 | 7.63 | 7.63 | not tested |
 | fp64 | 34.69 | 36.74 | 36.7 |
-| bf16 logits under `torch.autocast` | ≈ 16 (same as fp32) | — | — |
+| bf16 logits under `torch.autocast` | 16.05* | — | — |
 
-*Margin swept in steps of 0.01 (`cliff_k.py`). The chart above uses steps of
-0.05, so it shows 16.0, 7.65 and 5.55.*
+*Margin swept in steps of 0.01 (`cliff_k.py`), except the autocast row, which
+comes from the 0.05-step sweep (`cliff.py`) behind the chart. That chart shows
+16.0, 7.65 and 5.55.*
 
 Three things the paper doesn't show:
 
@@ -161,12 +164,13 @@ Three things the paper doesn't show:
   the mass is spread evenly, the cliff comes earlier. In fp32 it moves by 0.66–0.69
   (about ln 2) for K from 32 to 131,072, and by 1.95 (about ln 7) at K = 8,
   where it lands at 14.69. In fp64 the shift is 1.94 at K = 8 and 2.05–2.08 for
-  K ≥ 32. In bf16 and fp16 it barely moves (by 0.03 or less). The fp32 numbers fit the
+  K ≥ 32. In bf16 and fp16 it barely moves (by 0.03 or less). At K ≥ 32,768, fp16
+shows no cliff at all, because the wrong-class gradients underflow first. The fp32 numbers fit the
   summation order. At K = 8 each tiny term is added to the 1.0 on its own and
   lost on its own. At larger K, a vectorized reduction adds the 1.0 to only
   part of the small mass. That reading is my inference from the numbers. I
-  didn't trace the kernel. `log_softmax` followed by `nll_loss` gives the same
-  cliffs.
+  didn't trace the kernel. At K = 32, `log_softmax` followed by
+  `nll_loss` gives the same cliffs.
 - **The gradient goes wrong before it reaches zero.** Near the cliff it can
   only take values that are whole multiples of the float spacing just below
   1.0, so it moves in coarse steps. In the margin range before the cliff,
@@ -249,8 +253,8 @@ accuracy, after a run first reaches 90%.
 })();
 </script>
 
-*The loss is recomputed exactly in fp64 from the logits, so the cliff can't hide
-it. Pick a seed. Every arm uses the same data split and initialization for a
+*Logged every 10 steps. The loss is recomputed exactly in fp64 from the logits,
+so the cliff can't hide it. Pick a seed. Every arm uses the same data split and initialization for a
 given seed.*
 
 Reading it:
@@ -293,9 +297,10 @@ Reading it:
   bf16 weights. The paper reports fixed bf16 reaching 100%. It doesn't say how
   it stores the weights, and I didn't try fp32 master weights beyond the arm above.
 
-One result goes against the paper's claim that the fix speeds up grokking. On the 3 standard-fp32
-seeds that did reach 99%, they got there at steps 4,280–5,160. The fixed seeds
-took 3,460–9,700. With 5 seeds and this spread, I can't call either one faster.
+The paper's claim that the fix speeds up grokking didn't reproduce here. On
+the 3 seeds where both losses reached 99%, standard got there first every time
+(4,280 vs 5,440, 5,160 vs 7,700, 4,800 vs 7,530 steps). On the other 2,
+standard never got there. With 5 seeds, I can't call either one faster.
 
 ### An ordinary classifier
 
@@ -350,11 +355,12 @@ Takeaways, with their limits:
 
 - **If you use `torch.autocast`, the cliff you can hit is fp32's (about 16).**
   You need margins that large, which in practice means training long after
-  memorization: small datasets, many epochs, distillation targets. The digits
+  memorization: small datasets and many epochs. The digits
   run shows that's easy to reach. It also shows reaching it can be harmless.
 - **If you compute the loss on bf16 or fp16 logits, you're at 5.5 or 7.6.**
-  A model that is 99.6% sure of the answer is already there in bf16. That was
-  the worst arm I ran. Cast the logits to fp32 before the loss, or use the
+  A model that is 99.6% sure of the answer is already there in bf16. That arm
+  had the most loss spikes (40.8 per run) and the deepest test-accuracy dips
+  (up to 51 points) of any I ran. Cast the logits to fp32 before the loss, or use the
   fixed loss. Adam's ε can't help here: log(1/ε) = 16.1 for ε = 1e-7, and
   bf16's cliff is far below that.
 - **On this task, Adam ε = 1e-7 was as good as the new loss, at no cost.** The
@@ -366,9 +372,8 @@ Takeaways, with their limits:
   that equilibrium couldn't be rescued by ε or label smoothing, and an fp64
   loss would be marginal. The fixed loss has no cliff. Whether large-scale
   training ever gets there, I didn't test.
-- **Label smoothing is not a fix for this.** It avoids the cliff by never
-  letting the model get confident, and on a grokking task that's the whole
-  game.
+- **Label smoothing 0.01 was not a fix here.** It avoided the cliff, but no
+  seed grokked within 10,000 steps.
 
 Limits of this experiment: one toy task, one small transformer at a learning
 rate 3× the paper's, 5 seeds, CPU only, 10,000 steps. The spike rule is mine.
@@ -387,4 +392,4 @@ PY=venv/bin/python ./run_all.sh
 ```
 
 About 50 minutes on a 4-core CPU. The grokking grid takes most of it, and you
-can rerun a single arm with `python grok.py fixed_fp32 0`, about 2.5 minutes.
+can rerun one seed of one arm with `python grok.py fixed_fp32 0`, about 2.5 minutes.
