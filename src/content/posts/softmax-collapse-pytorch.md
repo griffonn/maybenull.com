@@ -265,7 +265,7 @@ Reading it:
   right around the cliff. 31–61% of training examples had a correct-class
   probability of exactly 1.0 in fp32, which means a zero correct-class gradient. The
   paper's account has spikes start once essentially every example is past the
-  cliff. In my runs they started with a third to two thirds past it. Each run's largest spike peaked at a loss of 0.12–0.72. Two seeds
+  cliff. In my runs they started with a third to three fifths past it. Each run's largest spike peaked at a loss of 0.12–0.72. Two seeds
   never reached 99% test accuracy. (The paper's standard fp32 arm ended at
   94.3 ± 5.4%. Mine did better at 98.9 ± 1.9%, possibly because of the higher
   learning rate.)
@@ -300,7 +300,7 @@ Reading it:
 - **The whole model in bf16 didn't grok with either loss.** Since the fixed
   loss failed too, the loss isn't the likely cause. My guess, which I didn't
   measure, is that AdamW's small steps round away against bf16 weights, whose
-  precision is only about 3 significant digits. The paper reports fixed bf16
+  precision is only about 2–3 significant digits. The paper reports fixed bf16
   reaching 100%. It doesn't say how it stores the weights. The "bf16 logits"
   arms above keep the weights in fp32.
 
@@ -370,7 +370,7 @@ Takeaways, with their limits:
   A model that is 99.6% sure of the answer is already there in bf16. That arm
   had the most loss spikes (40.8 per run) and the deepest test-accuracy dips
   (up to 51 points) of any I ran. Cast the logits to fp32 before the loss, or use the
-  fixed loss. Adam's ε can't help here: log(1/ε) = 16.1 for ε = 1e-7, and
+  fixed loss. No usual value of Adam's ε helps here: log(1/ε) = 16.1 for ε = 1e-7, and
   bf16's cliff is far below that.
 - **On this task, Adam ε = 1e-7 was as good as the new loss, at no cost.** The
   catch is that ε is not a free knob at scale. [Wortsman et al.](https://arxiv.org/abs/2309.14322)
@@ -379,8 +379,9 @@ Takeaways, with their limits:
   task's, where the model can fit every training example, lowering ε raises the
   equilibrium margin to log(1/ε), about 34.5 for 1e-15. That's far past the
   fp32 cliff and right at fp64's (34.7–36.7). A model that actually reached
-  that equilibrium couldn't be rescued by ε or label smoothing, and an fp64
-  loss would be marginal. The fixed loss has no cliff. Whether large-scale
+  that equilibrium couldn't be rescued by raising ε without risking the
+  instability Wortsman et al. saw. Label smoothing would keep it off the cliff,
+  but on this task it also stopped grokking. An fp64 loss would be marginal. The fixed loss has no cliff. Whether large-scale
   training ever gets there, I didn't test.
 - **Label smoothing 0.01 was not a fix here.** It avoided the cliff, but no
   seed grokked within 10,000 steps.
