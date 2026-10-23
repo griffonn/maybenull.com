@@ -14,12 +14,12 @@ Does an ordinary classifier ever cross the cliff? What does the fix cost?
 |---|---|
 | `ce.py` | `fixed_ce` (direct port, autograd), `fixed_ce_fn` (same math as a custom `autograd.Function`), `margin` (fp64). |
 | `cliff.py` | Sweeps the logit margin m from 0 to 100 (K=32) for `F.cross_entropy`, `log_softmax+nll_loss`, fixed CE, in fp32/bf16/fp16/fp64 and bf16 autocast. `results/cliff.csv`. |
-| `cliff_k.py` | Cliff location of `F.cross_entropy` vs number of classes K and how the non-target mass is spread. `results/cliff_k.csv`. |
+| `cliff_k.py` | Cliff location (0.01 steps) of `F.cross_entropy` in fp32/bf16/fp16/fp64 vs number of classes K and how the non-target mass is spread. `results/cliff_k.csv`. |
 | `grok.py` | One grokking run, a+b mod 31. Arms listed in `ARMS`. `results/grok/ARM_sSEED.json` (every 10 steps: exact fp64 train CE, mean/min margin, fraction of examples whose fp32 softmax target prob is exactly 1, train/test acc). |
 | `run_grok.sh` | 10 arms x 5 seeds, 4 parallel, 1 thread each. |
 | `run_lr1e-3.sh` | Same model at the paper's lr 1e-3 (2 seeds, std and fixed): why we use 3e-3. |
 | `digits.py`, `run_digits.sh` | sklearn's bundled 8x8 digits, MLP 64-256-256-10, full-batch AdamW, 20k steps, std vs fixed, wd 0 and 0.01, 3 seeds. |
-| `bench_speed.py` | Forward+backward ms: `F.cross_entropy` vs fixed CE (autograd and `autograd.Function`), vocab 1k/32k/128k, fp32/bf16, 4 threads. `results/speed.csv`. |
+| `bench_speed.py` | Forward+backward ms: `F.cross_entropy` vs fixed CE (autograd and `autograd.Function`), vocab 1k/32k/128k, fp32/bf16, 4 threads, 3 rounds. `results/speed.csv`, ratio ranges in `results/speed_summary.csv`. |
 | `analyze.py` | `results/summary.json` + the markdown table. Spike = exact train CE > 10x its minimum over the preceding 500 steps (consecutive points count once). Dip = largest drop of test acc below its running max after first reaching 90%. |
 | `chart_data.py` | `figs/cliff.json`, `figs/grok-curves.json` for the post's charts. |
 | `run_all.sh` | Everything in order. |

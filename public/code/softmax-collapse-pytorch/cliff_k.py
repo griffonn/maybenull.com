@@ -8,7 +8,7 @@ import csv, math
 import torch, torch.nn.functional as F
 
 rows = []
-for dtype in [torch.float32, torch.bfloat16, torch.float64]:
+for dtype in [torch.float32, torch.bfloat16, torch.float16, torch.float64]:
     for K in [2, 8, 32, 1024, 32768, 131072]:
         for shape in ["spread", "one"]:
             if shape == "one" and K == 2:

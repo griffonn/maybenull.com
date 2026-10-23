@@ -6,19 +6,18 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 R, OUT = os.path.join(HERE, "results"), os.path.join(HERE, "figs")
 os.makedirs(OUT, exist_ok=True)
 
-# 1. Target-logit gradient vs margin, K=32, per dtype (F.cross_entropy) + fixed fp32 + exact.
+# 1. Target-logit gradient as a fraction of the exact value, vs margin; K=32, F.cross_entropy per dtype + fixed fp32.
 rows = list(csv.DictReader(open(os.path.join(R, "cliff.csv"))))
 series = {}
 for name, path, dt in [("F.cross_entropy, fp32", "F.cross_entropy", "torch.float32"),
                        ("F.cross_entropy, fp16", "F.cross_entropy", "torch.float16"),
                        ("F.cross_entropy, bf16", "F.cross_entropy", "torch.bfloat16"),
                        ("fixed CE, fp32", "fixed", "torch.float32")]:
-    sub = [r for r in rows if r["path"] == path and r["dtype"] == dt and float(r["m"]) <= 40]
-    m = [round(float(r["m"]), 2) for r in sub][::2]
-    g = [abs(float(r["g_t"])) for r in sub][::2]
-    series[name] = {"m": m, "g": [float("%.4g" % v) if v > 0 else None for v in g]}
-exact = [r for r in rows if r["path"] == "fixed" and r["dtype"] == "torch.float64" and float(r["m"]) <= 40][::2]
-series["exact"] = {"m": [round(float(r["m"]), 2) for r in exact], "g": [float("%.4g" % abs(float(r["true_g_t"]))) for r in exact]}
+    sub = [r for r in rows if r["path"] == path and r["dtype"] == dt and float(r["m"]) <= 24]
+    series[name] = {"m": [round(float(r["m"]), 2) for r in sub],
+                    "ratio": [round(abs(float(r["g_t"])) / abs(float(r["true_g_t"])), 4) for r in sub],
+                    "g": [float("%.4g" % abs(float(r["g_t"]))) for r in sub],
+                    "exact": [float("%.4g" % abs(float(r["true_g_t"]))) for r in sub]}
 json.dump(series, open(os.path.join(OUT, "cliff.json"), "w"))
 
 # 2. Training curves, one panel per arm group: exact train CE and test accuracy, every seed.

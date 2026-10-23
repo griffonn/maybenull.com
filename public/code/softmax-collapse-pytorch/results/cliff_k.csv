@@ -21,6 +21,17 @@ bfloat16,32768,spread,5.58
 bfloat16,32768,one,5.55
 bfloat16,131072,spread,5.53
 bfloat16,131072,one,5.55
+float16,2,spread,7.63
+float16,8,spread,7.63
+float16,8,one,7.63
+float16,32,spread,7.63
+float16,32,one,7.63
+float16,1024,spread,7.63
+float16,1024,one,7.63
+float16,32768,spread,
+float16,32768,one,7.63
+float16,131072,spread,
+float16,131072,one,7.63
 float64,2,spread,36.74
 float64,8,spread,34.8
 float64,8,one,36.74

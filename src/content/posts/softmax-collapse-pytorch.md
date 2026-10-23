@@ -1,6 +1,6 @@
 ---
 title: "Softmax Collapse, measured in PyTorch"
-description: "PyTorch's cross-entropy returns an exactly zero target gradient once the logit margin passes about 16 in fp32, 7.7 in fp16 and 5.5 in bf16. On the paper's grokking task, Adam's eps=1e-7 removed the loss spikes as well as the new loss did, and label smoothing stopped grokking altogether."
+description: "PyTorch's cross-entropy returns an exactly zero target gradient once the logit margin passes about 16 in fp32, 7.6 in fp16 and 5.5 in bf16. On the paper's grokking task, Adam's eps=1e-7 removed the loss spikes as well as the new loss did, and label smoothing 0.01 prevented grokking within 10,000 steps."
 date: 2026-10-23
 draft: false
 ---
@@ -29,7 +29,8 @@ gradient is 0. The other classes' gradients are computed without adding them
 to 1.0, so they stay positive. The gradients stop summing to zero.
 
 The paper argues this is behind the "Slingshot" loss spikes seen when training
-with Adam, and grokking runs that stall. Its fix computes the margin while
+with Adam, and behind grokking runs that stall. (Grokking: a model memorizes its
+training set early and only starts generalizing to the test set much later.) Its fix computes the margin while
 leaving the correct class out of the sum, then returns softplus(−m). It gives
 the cliffs as about 5.5 (bf16), 16.6 (fp32) and 36.7 (fp64), and its code is
 JAX.
@@ -43,16 +44,18 @@ something narrower:
    which the paper doesn't test, and `torch.autocast`, which is how most people
    use bf16?
 2. On the paper's grokking task, does the fix do better than knobs you already
-   have: Adam's ε, label smoothing, or casting the loss to fp64? The paper
-   predicts the ε result in one sentence and doesn't run it.
+   have: Adam's ε (the small constant Adam adds to its denominator), label
+   smoothing, or casting the loss to fp64? The paper predicts the ε result in
+   one sentence and doesn't run it.
 3. Does an ordinary classifier ever get that confident?
-4. What does the fix cost? The paper says "without meaningful slowdown" but
-   gives no timings.
+4. What does the fix cost? The paper says the slowdown is negligible but gives
+   no timings.
 
 ## Setup
 
-Everything ran on a 4-core Xeon CPU with no GPU, using PyTorch 2.14.1. The
-measured experiments took about 50 minutes of wall-clock time.
+Everything ran on a 4-core Xeon CPU with no GPU, using PyTorch 2.14.1. Rerunning
+everything takes about 50 minutes; with pilots and reruns, this post used about
+75.
 
 **The port.** This is the paper's hard-target cross-entropy, translated line by
 line:
@@ -67,7 +70,8 @@ def fixed_ce(z, t):
 ```
 
 I also wrote the same math as a custom `torch.autograd.Function`, so the
-backward pass is a single expression. The two agree to within 7e-9 in fp32.
+backward pass is a single expression. The two return identical losses, and
+their gradients differ by at most 1.5e-7 (6e-6 relative) across the fp32 sweep.
 
 **Cliff sweeps.** A single row of K logits, with the correct one set so the
 margin is exactly m. I swept m and recorded the gradient that autograd
@@ -83,7 +87,7 @@ At the paper's 1e-3, my model was still at 52–72% test accuracy at step 10,000
 - `F.cross_entropy` (standard) vs fixed, fp32, ε = 1e-8
 - standard with ε = 1e-7, with label smoothing 0.01, and with the logits cast to fp64 before the loss
 - standard under `torch.autocast(bfloat16)`
-- fp32 weights, but the loss computed on bf16 logits, standard vs fixed
+- fp32 weights and an autocast forward pass, but the loss computed on the bf16 logits, standard vs fixed
 - the whole model in bf16, standard vs fixed
 
 I count a **loss spike** when the exact train loss jumps more than 10× above its
@@ -97,7 +101,7 @@ decay 0 or 0.01, 3 seeds, standard vs fixed.
 
 ### Where PyTorch's cliff is
 
-<div id="sc-cliff" style="width:100%;min-height:400px" role="img" aria-label="Gradient on the correct-class logit as computed, divided by its exact value, versus logit margin from 0 to 24. The fixed cross-entropy stays at exactly 1. F.cross_entropy wobbles and then drops to exactly 0: bf16 at a margin of 5.55, fp16 at 7.65, fp32 at 16.0."></div>
+<div id="sc-cliff" style="width:100%;min-height:400px" role="img" aria-label="Gradient on the correct-class logit as computed, divided by its exact value, versus logit margin from 0 to 24. The fixed cross-entropy stays at exactly 1. F.cross_entropy wobbles and then drops to exactly 0: bf16 at a margin of 5.55, fp16 at 7.65, fp32 at 16.0. Below a margin of about 13, the thick fixed line covers the fp32 standard line."></div>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 <script>
 (function () {
@@ -134,79 +138,50 @@ decay 0 or 0.01, 3 seeds, standard vs fixed.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
 })();
 </script>
-<script>
-(function () {
-  var C = {'F.cross_entropy, fp32': '#E69F00', 'F.cross_entropy, fp16': '#CC79A7', 'F.cross_entropy, bf16': '#D55E00', 'fixed CE, fp32': '#0072B2'};
-  function theme() {
-    var cs = getComputedStyle(document.documentElement);
-    return {fg: cs.getPropertyValue('--fg').trim(), muted: cs.getPropertyValue('--muted').trim(), grid: cs.getPropertyValue('--line').trim()};
-  }
-  function axis(t, extra) { return Object.assign({gridcolor: t.grid, linecolor: t.muted, zerolinecolor: t.muted, tickfont: {color: t.muted}}, extra); }
-  function draw(d) {
-    var el = document.getElementById('sc-cliff'), t = theme(), narrow = el.clientWidth < 560, traces = [];
-    ['fixed CE, fp32', 'F.cross_entropy, fp32', 'F.cross_entropy, fp16', 'F.cross_entropy, bf16'].forEach(function (k) {
-      traces.push({x: d[k].m, y: d[k].g, name: k, mode: 'lines', connectgaps: false,
-        line: {color: C[k], width: k === 'fixed CE, fp32' ? 5 : 2.5},
-        hovertemplate: 'margin %{x:.2f}<br>|gradient| %{y:.3e}<extra>' + k + '</extra>'});
-    });
-    traces.push({x: d.exact.m, y: d.exact.g, name: 'exact (fp64 math)', mode: 'lines',
-      line: {color: t.fg, width: 1.5, dash: 'dot'}, hovertemplate: 'margin %{x:.2f}<br>|gradient| %{y:.3e}<extra>exact</extra>'});
-    var lay = {height: narrow ? 520 : 440, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', hovermode: 'closest',
-      font: {family: 'Inter, system-ui, sans-serif', color: t.fg, size: 12},
-      margin: {l: 64, r: 10, t: 10, b: narrow ? 170 : 110},
-      legend: {orientation: 'h', x: 0, y: narrow ? -0.2 : -0.22, yanchor: 'top', font: {color: t.fg}},
-      xaxis: axis(t, {range: [0, 40], title: {text: 'logit margin m (correct logit minus log-sum-exp of the rest)', font: {color: t.muted}, standoff: 6}}),
-      yaxis: axis(t, {type: 'log', range: [-18, 0.1], exponentformat: 'power',
-        title: {text: '|gradient on correct logit|', font: {color: t.muted}}})};
-    Plotly.react(el, traces, lay, {responsive: true, displayModeBar: false});
-  }
-  function go() {
-    fetch('/lab/softmax-collapse-pytorch/cliff.json').then(function (r) { return r.json(); }).then(function (d) {
-      draw(d);
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () { draw(d); });
-      var el = document.getElementById('sc-cliff'), narrow = el.clientWidth < 560;
-      window.addEventListener('resize', function () { if ((el.clientWidth < 560) !== narrow) { narrow = !narrow; draw(d); } });
-    });
-  }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
-})();
-</script>
 
 *K = 32 classes with the 31 wrong logits equal, margin swept in steps of 0.05.
-1.0 means the gradient is right, 0 means it's gone. Hover for the raw values.*
+1.0 means the gradient is right, 0 means it's gone. Below a margin of about 13,
+the thick fixed line hides the fp32 standard line. Hover for the raw values.*
 
-| `F.cross_entropy` input | cliff, PyTorch (31 equal wrong logits) | cliff, PyTorch (one runner-up) | paper |
+| `F.cross_entropy` input | cliff, PyTorch, K = 32 (31 equal wrong logits) | cliff, PyTorch, K = 32 (one runner-up) | paper |
 |---|---|---|---|
-| fp32 | 15.95 | 16.64 | 16.6 |
-| bf16 | 5.53–5.58 | 5.55 | 5.5 |
-| fp16 | 7.65 | — | not tested |
-| fp64 | 34.66 | 36.74 | 36.7 |
-| bf16 logits under `torch.autocast` | 16.05 | — | — |
+| fp32 | 15.98 | 16.64 | 16.6 |
+| bf16 | 5.54 | 5.55 | 5.5 |
+| fp16 | 7.63 | 7.63 | not tested |
+| fp64 | 34.69 | 36.74 | 36.7 |
+| bf16 logits under `torch.autocast` | ≈ 16 (same as fp32) | — | — |
+
+*Margin swept in steps of 0.01 (`cliff_k.py`). The chart above uses steps of
+0.05, so it shows 16.0, 7.65 and 5.55.*
 
 Three things the paper doesn't show:
 
-- **The cliff depends on how the wrong-class mass is spread.** When one
-  runner-up holds all of it, PyTorch matches the paper's number. When the mass
-  is spread over many classes, the cliff comes earlier: about ln 2 earlier for
-  K ≥ 32, and ln 7 earlier at K = 8 (14.69). That pattern fits the summation
-  order. At K = 8 each tiny term is added to the 1.0 on its own and lost on its
-  own. At larger K, a tree reduction adds the 1.0 to only part of the small
-  mass. That reading is my inference from the numbers. I didn't trace the
-  kernel. `log_softmax` followed by `nll_loss` gives the same cliffs.
+- **In fp32 and fp64, the cliff depends on how the wrong-class mass is spread.**
+  When one runner-up holds all of it, PyTorch matches the paper's number. When
+  the mass is spread evenly, the cliff comes earlier. In fp32 it moves by 0.66–0.69
+  (about ln 2) for K from 32 to 131,072, and by 1.95 (about ln 7) at K = 8,
+  where it lands at 14.69. In fp64 the shift is 1.94 at K = 8 and 2.05–2.08 for
+  K ≥ 32. In bf16 and fp16 it barely moves (by 0.03 or less). The fp32 numbers fit the
+  summation order. At K = 8 each tiny term is added to the 1.0 on its own and
+  lost on its own. At larger K, a vectorized reduction adds the 1.0 to only
+  part of the small mass. That reading is my inference from the numbers. I
+  didn't trace the kernel. `log_softmax` followed by `nll_loss` gives the same
+  cliffs.
 - **The gradient goes wrong before it reaches zero.** Near the cliff it can
   only take values that are whole multiples of the float spacing just below
   1.0, so it moves in coarse steps. In the margin range before the cliff,
   the computed value was as low as 0.53× the exact one in fp32. In fp16 and
   bf16 it ranged from 0.68× to 1.95×.
-- **Autocast protects you.** Under `torch.autocast(bfloat16)` the logits come
+- **Autocast keeps you on the fp32 cliff, not bf16's.** Under `torch.autocast(bfloat16)` the logits come
   out as bf16, but autocast runs `F.cross_entropy` in fp32, so the cliff is
   fp32's. The bf16 cliff of 5.5 only applies if you call the loss on bf16
   logits yourself, for example in a model cast with `.to(torch.bfloat16)`.
-  The same reasoning applies to fp16 and its 7.7.
+  The same reasoning applies to fp16 and its 7.6. Autocast doesn't remove the
+  fp32 cliff. The grokking results below show what that cliff does.
 
 The fixed loss had no cliff in any dtype I swept. In fp32 and fp64 its
 correct-class gradient stayed nonzero up to a margin of 100, and its gradients
-summed to zero within 4e-8. In fp16 and bf16 all the gradients eventually
+summed to zero within 4.3e-8. In fp16 and bf16 all the gradients eventually
 underflow, but they do it together, not the correct class first.
 
 ### Grokking: the fix vs the knobs
@@ -283,12 +258,15 @@ Reading it:
 - **The spikes reproduce, and they line up with the cliff.** Standard fp32
   cross-entropy produced 7 spikes in every one of its 5 runs. Before each
   spike, the mean margin had climbed to 15.9–16.9, where the loss rounds to
-  zero. The peak losses after memorization were 0.12–0.72. Two seeds never
-  reached 99% test accuracy.
+  zero. Each run's largest spike peaked at a loss of 0.12–0.72. Two seeds
+  never reached 99% test accuracy. (The paper's standard fp32 arm ended at
+  94.3 ± 5.4%. Mine did better at 98.9 ± 1.9%, possibly because of the higher
+  learning rate.)
 - **The fix removes almost all of them.** All 5 seeds reached 100%. Two seeds
-  still had one spike each, peaking at 0.013 and 0.025, which is about ten
-  times smaller than standard's. The cliff can't explain those, so not every
-  spike in this setup is Softmax Collapse.
+  still had one spike each, peaking at 0.013 and 0.025. That's smaller than
+  the largest spike in every standard run, but about the size of a typical
+  standard spike (median 0.03 over its 35). The cliff can't explain those two,
+  so not every spike in this setup is Softmax Collapse.
 - **Adam's ε = 1e-7 did as well as the fix here.** It produced zero spikes in
   5 of 5 seeds, and its worst final accuracy was 99.6%. The paper explains why
   in its Section 5. With weight decay, margins settle where the gradient is
@@ -296,7 +274,7 @@ Reading it:
   fp32's cliff, and 16.1 for ε = 1e-7, just before it. My ε = 1e-7 runs
   settled at a mean margin of 14.7. At no logged step were more than 5–9% of
   training examples past the cliff.
-- **Label smoothing 0.01 caps the margin and kills grokking.** The margin
+- **Label smoothing 0.01 caps the margin, and no seed grokked.** The margin
   can't go above about 4.6, so the cliff never comes into play. Test accuracy
   also never went above 42–52% (depending on the seed) in 10,000 steps.
 - **Casting the loss to fp64** moves the cliff to 34.7, beyond the equilibrium.
@@ -315,7 +293,7 @@ Reading it:
   bf16 weights. The paper reports fixed bf16 reaching 100%. It doesn't say how
   it stores the weights, and I didn't try fp32 master weights beyond the arm above.
 
-One result goes against the paper's "groks faster". On the 3 standard-fp32
+One result goes against the paper's claim that the fix speeds up grokking. On the 3 standard-fp32
 seeds that did reach 99%, they got there at steps 4,280–5,160. The fixed seeds
 took 3,460–9,700. With 5 seeds and this spread, I can't call either one faster.
 
@@ -341,19 +319,22 @@ pushing on their own, which is the asymmetry the paper describes.
 
 ### What the fix costs
 
-Forward plus backward on CPU, 4 threads, median of 7 runs (`bench_speed.py`):
+Forward plus backward on CPU, 4 threads (`bench_speed.py`). Each round takes the
+median of 7 timings, and I ran 3 rounds. The cells show the range over rounds,
+with the slowdown relative to `F.cross_entropy` in the same round:
 
 | logits | `F.cross_entropy` | fixed, plain autograd | fixed, `autograd.Function` |
 |---|---|---|---|
-| fp32, 1,024 × 32k | 100 ms | 370 ms (3.7×) | 171 ms (1.7×) |
-| fp32, 512 × 128k | 204 ms | 759 ms (3.7×) | 303 ms (1.5×) |
-| bf16, 1,024 × 32k | 58 ms | 279 ms (4.8×) | 170 ms (2.9×) |
-| bf16, 512 × 128k | 115 ms | 519 ms (4.5×) | 317 ms (2.8×) |
+| fp32, 1,024 × 32k | 84–95 ms | 323–357 ms (3.8–3.9×) | 140–155 ms (1.6–1.7×) |
+| fp32, 512 × 128k | 176–185 ms | 706–1,470 ms (4.0–8.0×) | 303–337 ms (1.7–1.9×) |
+| bf16, 1,024 × 32k | 51–58 ms | 264–290 ms (4.8–5.2×) | 162–171 ms (2.9–3.4×) |
+| bf16, 512 × 128k | 111–113 ms | 517–550 ms (4.6–4.9×) | 306–329 ms (2.7–3.0×) |
 
-A line-by-line port is 3.7–4.8× slower than the fused loss. A custom
-backward brings that down to 1.5–2.9×. Most of the rest is the extra full-size
-temporary (z − z_t with the target masked), which PyTorch's fused kernel never
-materializes. These are CPU numbers. On a GPU, or with a fused kernel written for
+A line-by-line port is about 4–5× slower than the fused loss (one noisy round
+reached 8×). A custom backward brings that down to 1.6–3.4×. I didn't profile
+where the rest goes. My guess is the extra full-size temporary (z − z_t with
+the target masked), which PyTorch's fused kernel doesn't need. Timings on this
+shared machine moved by 10–25% between runs. These are CPU numbers. On a GPU, or with a fused kernel written for
 the fix, the gap could be very different, and I didn't measure either.
 
 ## What it means
@@ -371,16 +352,20 @@ Takeaways, with their limits:
   You need margins that large, which in practice means training long after
   memorization: small datasets, many epochs, distillation targets. The digits
   run shows that's easy to reach. It also shows reaching it can be harmless.
-- **If you compute the loss on bf16 or fp16 logits, you're at 5.5 or 7.7.**
+- **If you compute the loss on bf16 or fp16 logits, you're at 5.5 or 7.6.**
   A model that is 99.6% sure of the answer is already there in bf16. That was
   the worst arm I ran. Cast the logits to fp32 before the loss, or use the
-  fixed loss.
+  fixed loss. Adam's ε can't help here: log(1/ε) = 16.1 for ε = 1e-7, and
+  bf16's cliff is far below that.
 - **On this task, Adam ε = 1e-7 was as good as the new loss, at no cost.** The
   catch is that ε is not a free knob at scale. [Wortsman et al.](https://arxiv.org/abs/2309.14322)
   found the default 1e-8 already too large for a 4.8B-parameter model,
   lowered it to 1e-15, and saw a divergence at 1e-6. Lowering ε pushes the
   equilibrium margin to log(1/ε), about 34.5 for 1e-15. That's far past the
-  fp32 cliff, and there the fix is the only one of these options that helps.
+  fp32 cliff and right at fp64's (34.7–36.7). A model that actually reached
+  that equilibrium couldn't be rescued by ε or label smoothing, and an fp64
+  loss would be marginal. The fixed loss has no cliff. Whether large-scale
+  training ever gets there, I didn't test.
 - **Label smoothing is not a fix for this.** It avoids the cliff by never
   letting the model get confident, and on a grokking task that's the whole
   game.
