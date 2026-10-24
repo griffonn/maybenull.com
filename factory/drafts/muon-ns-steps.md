@@ -1,6 +1,6 @@
 ---
 title: "Muon's Newton-Schulz steps, counted"
-description: A new paper models Muon's Newton-Schulz steps as a damped polar update that can beat exact orthogonalization. On a small char-level GPT, 5 and 8 steps and an exact SVD tie within seed noise, 3 steps trail by under 0.01 nats, and the damped model tracks the step count but not the win.
+description: A new paper models Muon's Newton-Schulz steps as a damped polar update that can beat exact orthogonalization. On a small char-level GPT, 5 and 8 steps and an exact SVD tie within seed noise, 3 steps trail by under 0.01 nats, and the damped model tracks NS within about 0.008 nats, but damping an exact SVD didn't beat it.
 date: 2026-10-24
 draft: false
 ---
@@ -82,7 +82,8 @@ def damped_polar(G, eps):                    # the paper's model of ns(G, q)
     return (U * (s / torch.sqrt(s * s + eps))) @ Vh   # eps = A ** (-2 * q)
 ```
 
-Exact polar is `damped_polar` with `eps = 0`. NS runs in fp32 here; the
+Both are simplified (the real code transposes tall matrices and runs the SVD
+in float64). Exact polar is `damped_polar` with `eps = 0`. NS runs in fp32 here; the
 reference implementation runs it in bfloat16.
 
 **Fairness.** Each arm gets its own learning rate from a sweep over
@@ -282,12 +283,12 @@ My guess at why, which is my inference and not the paper's analysis: there
 isn't much update for damping to take away. The paper reports that in its
 90M model the directions below `1/ℓ_5` carry about 16% of the exact polar
 update's squared norm, and about 5% of the 5-step one. In my runs that share
-is 4.7% under exact polar and 1.7% under 5 steps. It barely grows with
-training: at step 2,000, 4.7–6.5% of singular values sit below `1/ℓ_5`
+is 4.7% under exact polar and 1.7% under 5 steps. It grows only slightly
+with training: at step 2,000, 4.7–6.5% of singular values sit below `1/ℓ_5`
 across the four long-run arms. The paper's slow regime is defined by the
-conditioning of the iterate on a quadratic, and it notes that this picture
-doesn't carry over literally to a network's momentum, so the share is a
-proxy, not its criterion.
+conditioning of the iterate on a quadratic, and its own diagnostic finds the
+momentum's tiny directions unaligned with the weights' smallest ones, so the
+share is a proxy, not its criterion.
 
 Takeaways:
 
