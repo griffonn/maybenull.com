@@ -1,14 +1,14 @@
 ---
 title: "Muon's Newton-Schulz steps, counted"
-description: A new paper predicts that Muon's 5 Newton-Schulz steps behave like a damped polar update and can even beat exact orthogonalization. On a small char-level GPT, the damped model predicts the loss of 3–5 steps to within 0.01 nats, but nothing beat exact SVD, and the steps past 3 bought less than the seed noise.
+description: A new paper models Muon's Newton-Schulz steps as a damped polar update that can beat exact orthogonalization. On a small char-level GPT, 5 and 8 steps and an exact SVD tie within seed noise, 3 steps trail by under 0.01 nats, and the damped model tracks the step count but not the win.
 date: 2026-10-24
 draft: false
 ---
 
 Muon, the optimizer, orthogonalizes every weight update with five iterations
-of a matrix polynomial. A new paper argues those five steps aren't an
-approximation of the ideal update. They are a different update, and on its
-toy problems a better one. I swept the step count in real training to see
+of a matrix polynomial. A new paper argues those five steps aren't merely an
+approximation of the ideal update. They are a different update, and on a
+nearly rank-deficient toy problem a better one. I swept the step count in real training to see
 whether that survives contact with a network.
 
 ## Context
@@ -31,7 +31,7 @@ unbounded. Finite NS multiplies small values by a fixed gain
 behaves like a **damped** polar update, `s ↦ s / √(s² + ε)` with `ε = ℓ_q⁻²`.
 Below about `1/ℓ_q`, NS treats a direction like plain gradient descent does.
 The paper reports that this can make fewer NS steps converge faster than exact
-polar.
+polar when the iterate is close to rank-deficient.
 
 ## The question
 
@@ -90,19 +90,22 @@ reference implementation runs it in bfloat16.
 more seeds at that rate. Seeds fix the initialization and the batch order, so
 two arms with the same seed see the same data. I report the mean and sample
 standard deviation over the 5 seeds and the paired difference where it matters.
+Seed 0 also picked the learning rates, a mild selection effect in its favor.
 To check that longer training doesn't change the picture, 4 arms also ran for
 2,000 steps with 2 seeds.
 
 **Hardware.** A 4-core Xeon (2.8 GHz), no GPU, 4 single-threaded runs at a
 time. Sweep and seeds: 37 + 41 minutes.
 
-Before the sweep, I checked the one thing the effect needs: tiny singular
-values. At the end of training, 4.1–5.3% of the momentum buffers' normalized
+The effect needs tiny singular values, so I checked that they exist here.
+At the end of training, 4.1–5.3% of the momentum buffers' normalized
 singular values fall below `1/ℓ_5` (4 seeds each of the 5-step and the exact
 arms). They concentrate in the attention output projection (10% on average,
 up to 20% in one layer) and the second MLP matrix of the last layer (up to
 25%). The regime exists here, just smaller than the paper's quarter of the
-attention singular values.
+attention singular values. (Eight of the sixteen matrices also have one
+singular value below 10⁻⁷, a structural zero, likely from LayerNorm; excluding
+them lowers these shares by about 0.4 points.)
 
 ## Results
 
@@ -112,9 +115,9 @@ attention singular values.
 *What each update does to one singular value of the normalized momentum.
 Solid: NS with q steps. Dashed: damped polar with ε = ℓ_q⁻². Hover for values.*
 
-The filters first. Both families agree near zero and in the flat part. They
-differ in the band in between. Past it, NS peaks at 1.2 and then wobbles
-between about 0.68 and 1.13 instead of sitting at 1.
+The filters first. Both families agree near zero and differ on the ramp.
+Past the ramp, damped polar sits at 1, while NS peaks at 1.2 and then
+wobbles between about 0.68 and 1.13.
 With one step the band is the whole spectrum: Frobenius normalization means
 at most 11 of a matrix's singular values can exceed `1/ℓ_1 = 0.29`, so a
 1-step Muon update is close to a rescaled momentum.
@@ -140,15 +143,17 @@ as a ranking, not as GPU numbers.
 
 <div id="ns-final" style="width:100%;min-height:440px" role="img" aria-label="Final validation loss after 600 steps versus number of Newton-Schulz steps (1, 2, 3, 5, 8, exact), for Newton-Schulz and damped polar, with one dot per seed, exact polar at the right, and AdamW as a horizontal reference line."></div>
 
-*Dots: individual seeds. Line: mean over 5 seeds. The dashed line is AdamW's
+*Small dots: individual seeds. Diamonds: mean over 5 seeds (damped polar was
+run at 1, 3 and 5 only). The dashed line is AdamW's
 mean. Lower is better.*
 
 Plainly:
 
-- **The step count matters up to 3.** One step to two is worth 0.063 nats,
-  two to three 0.040, and both gains hold on every seed (paired). Three to
-  five is 0.007, with 5 steps ahead on 4 of 5 seeds, smaller than the seed
-  spread. Five to eight is 0.002.
+- **Most of the gain is in the first 3 steps.** One step to two is worth
+  0.063 nats, two to three 0.040, and both gains hold on every seed (paired).
+  Three to five is 0.007 (5 steps ahead on 4 of 5 seeds), and three to eight
+  is 0.009 (8 steps ahead on all 5, by 0.001–0.013). Small, but real by the
+  same every-seed standard. Five to eight is 0.002.
 - **Exact polar is not worse, and not better.** It is 0.003 behind 5 steps on
   average (paired sd 0.007; 5 steps ahead on 4 of 5 seeds) and 0.005 behind 8
   steps (3 of 5). That's within noise.
@@ -157,7 +162,10 @@ Plainly:
 - **The damped model predicts NS from 3 steps up.** Matched pairs differ by
   0.008 at `q = 3` and 0.007 at `q = 5`, with NS ahead on 4 of 5 seeds both
   times. At `q = 1` it misses: damped is 0.020 better on all 5 seeds, and
-  lands on AdamW's number. It gets the ranking right everywhere.
+  lands on AdamW's number. Across step counts it gets the ranking right.
+- **Damping an exact SVD didn't help.** Exact polar and damped polar at
+  `ε = ℓ_5⁻²` differ only in `ε`. Exact polar was 0.004 ahead, on 4 of 5
+  seeds (paired sd 0.004).
 
 <div id="ns-long" style="width:100%;min-height:420px" role="img" aria-label="Validation loss versus training step over 2000 steps for Newton-Schulz with 3 and 5 steps, exact polar and damped polar with epsilon equal to ell_5 to the minus 2, mean of 2 seeds."></div>
 
@@ -166,8 +174,8 @@ Plainly:
 <script>
 (function () {
   var NS = '#0072B2', DAMP = '#E69F00', POLAR = '#009E73', ADAM = '#999999';
-  var QC = {'1': '#CC79A7', '3': '#56B4E9', '5': '#0072B2'};
-  var LONG = {ns3: ['NS, 3 steps', '#56B4E9', 'solid'], ns5: ['NS, 5 steps', NS, 'solid'],
+  var QC = {'1': '#CC79A7', '3': '#D55E00', '5': '#0072B2'};
+  var LONG = {ns3: ['NS, 3 steps', '#D55E00', 'solid'], ns5: ['NS, 5 steps', NS, 'solid'],
     polar: ['exact polar', POLAR, 'solid'], damped5: ['damped polar, ε = ℓ₅⁻²', DAMP, 'dash']};
   function theme() {
     var cs = getComputedStyle(document.documentElement);
@@ -194,6 +202,8 @@ Plainly:
     ['1', '3', '5'].forEach(function (q) {
       tr.push({x: d.s, y: d.ns[q], mode: 'lines', name: 'NS, ' + q + (q === '1' ? ' step' : ' steps'), line: {color: QC[q], width: 2.5},
         hovertemplate: 'in %{x:.2e} → out %{y:.3f}<extra>NS, q=' + q + '</extra>'});
+    });
+    ['1', '3', '5'].forEach(function (q) {
       tr.push({x: d.s, y: d.damped[q], mode: 'lines', name: 'damped, ε = ℓ' + '₁₃₅'['135'.indexOf(q)] + '⁻²', line: {color: QC[q], width: 2, dash: 'dash'},
         hovertemplate: 'in %{x:.2e} → out %{y:.3f}<extra>damped polar, q=' + q + '</extra>'});
     });
@@ -213,7 +223,7 @@ Plainly:
       arms.forEach(function (a, i) { d[a].vals.forEach(function (v, j) { xs.push(cats[i]); ys.push(v); hs.push('seed ' + d[a].seeds[j] + ', lr ' + d[a].lr); }); });
       tr.push({x: xs, y: ys, mode: 'markers', name: name + ' (seeds)', legendgroup: name, showlegend: false, marker: {color: color, size: 6, opacity: 0.55},
         offsetgroup: name, text: hs, hovertemplate: 'q = %{x}: %{y:.3f} nats<br>%{text}<extra>' + name + '</extra>'});
-      tr.push({x: cats, y: arms.map(function (a) { return d[a].mean; }), mode: 'lines+markers', name: name, legendgroup: name,
+      tr.push({x: cats, y: arms.map(function (a) { return d[a].mean; }), mode: name === 'Newton-Schulz' ? 'lines+markers' : 'markers', name: name, legendgroup: name,
         line: {color: color, width: 2.5}, marker: {size: 10, symbol: 'diamond'},
         hovertemplate: 'q = %{x}: mean %{y:.3f} nats (5 seeds)<extra>' + name + '</extra>'});
     }
@@ -260,38 +270,45 @@ updates.
 The paper's mechanism holds up in the part that's easy to check. Five quintic
 NS steps act like polar with a floor on how hard they amplify tiny directions,
 and an SVD with that floor trains about the same as NS. The polynomial's
-overshoot above 1 seems not to matter here, because damped polar has none and
-lands within 0.01.
+wobble around 1 costs nothing: damped polar has none, and NS beat its damped
+twin on 4 of 5 seeds at both 3 and 5 steps, by less than 0.01.
 
-The surprising half doesn't show up at this scale. Exact polar never lost to
-5 steps, and 3 steps never beat 5. The paper's own diagnostic suggests why.
-It reports that in its 90M model the directions below `1/ℓ_5` carry about 16%
-of the exact polar update's squared norm, and about 5% of the 5-step one. In
-my runs that share is 4.7% under exact polar and 1.7% under 5 steps. There
-isn't much update for damping to take away. Exact polar's slow regime, where
-it's stuck on tiny singular values, may need more of them than this model
-grows in 2,000 steps.
+The surprising half doesn't show up at this scale. Exact polar trailed
+5 steps by 0.003 on average, inside the seed noise, and 3 steps beat exact
+polar on only 2 of 5 seeds. The cleanest test of damping itself, the same
+SVD with and without `ε`, went slightly the other way.
+
+My guess at why, which is my inference and not the paper's analysis: there
+isn't much update for damping to take away. The paper reports that in its
+90M model the directions below `1/ℓ_5` carry about 16% of the exact polar
+update's squared norm, and about 5% of the 5-step one. In my runs that share
+is 4.7% under exact polar and 1.7% under 5 steps. It barely grows with
+training: at step 2,000, 4.7–6.5% of singular values sit below `1/ℓ_5`
+across the four long-run arms. The paper's slow regime is defined by the
+conditioning of the iterate on a quadratic, and it notes that this picture
+doesn't carry over literally to a network's momentum, so the share is a
+proxy, not its criterion.
 
 Takeaways:
 
 - If you run Muon, the default 5 steps is not leaving loss on the table
   against an exact SVD, at least at this scale. You don't need a better
   orthogonalizer for its own sake.
-- Three steps cost 0.007 nats here at 3/5 of the NS work; two steps cost
-  0.046. If NS time matters, measure 3 or 4 before going lower.
-- One step is not Muon. It's normalized momentum with extra steps, and it lost
+- Three steps cost 0.007–0.009 nats here (against 5 and 8 steps) at 3/5 of
+  the NS work; two steps cost 0.046. If NS time matters, measure 3 or 4 before going lower.
+- One step barely orthogonalizes anything (see the filter chart), and it lost
   to AdamW.
 - To reason about a step count or a new coefficient set, the damped-polar
   formula is a decent stand-in from 3 steps up: compute `ℓ_q` and see where
   your momentum's singular values sit.
 
 **Where this breaks.** This is a 0.81M-parameter character model, 600 and
-2,000 steps, on a CPU. Exact polar's slowness should grow with the share of
-tiny singular values, and the paper finds that share is several times larger
-at 90M. A larger model trained longer could still show fewer steps beating
+2,000 steps, on a CPU. In the paper's analysis, exact polar's slowness grows with
+the share of tiny singular values, and by update norm that share is about
+three times larger in its 90M model than here. A larger model trained longer could still show fewer steps beating
 exact. NS ran in fp32; in bfloat16 the tiniest values behave differently. QKV
-is one fused matrix here; the paper's attention numbers may count Q, K and V
-separately. The learning-rate grid is coarse (factors of 2), and I used one
+is one fused matrix here, while the paper counts query, key and value as
+separate matrices. The learning-rate grid is coarse (factors of 2), and I used one
 learning rate for all seeds of an arm. I tested only the quintic Muon
 coefficients, not tuned alternatives like Polar Express. And the timing column
 is CPU wall-clock, which says little about a GPU.
